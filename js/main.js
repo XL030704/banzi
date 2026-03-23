@@ -4,13 +4,13 @@
 
 // 等待DOM加载
 document.addEventListener('DOMContentLoaded', async () => {
-    // 加载PeerJS
+    // 加载Pusher
     try {
-        await loadPeerJS();
-        console.log('PeerJS loaded');
+        await loadPusher();
+        console.log('Pusher loaded');
         showToast('网络组件加载成功');
     } catch (err) {
-        console.error('Failed to load PeerJS:', err);
+        console.error('Failed to load Pusher:', err);
         showToast('网络组件加载失败，请检查网络后刷新重试');
     }
 
@@ -39,16 +39,15 @@ function bindHomeEvents() {
     const btnConfirmJoin = document.getElementById('btn-confirm-join');
     const btnCancelJoin = document.getElementById('btn-cancel-join');
 
-    // 创建房间
-    // 检查 PeerJS 是否已加载
-    function isPeerJSReady() {
-        return typeof window.Peer !== 'undefined' && window.Peer;
+    // 检查 Pusher 是否已加载
+    function isNetworkReady() {
+        return typeof window.Pusher !== 'undefined' && window.Pusher;
     }
 
     // 创建房间
     btnCreate.addEventListener('click', async () => {
-        // 检查 PeerJS 是否加载完成
-        if (!isPeerJSReady()) {
+        // 检查 Pusher 是否加载完成
+        if (!isNetworkReady()) {
             showToast('网络组件正在加载，请稍后再试');
             return;
         }
@@ -66,7 +65,9 @@ function bindHomeEvents() {
         } catch (err) {
             console.error('创建房间错误:', err);
             let errorMsg = err.message || '未知错误';
-            if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
+            if (errorMsg.includes('配置')) {
+                errorMsg = '请先配置 Pusher key（查看 network.js 第 30 行）';
+            } else if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
                 errorMsg = '连接服务器超时，请检查网络后重试';
             } else if (errorMsg.includes('unavailable')) {
                 errorMsg = '网络服务不可用，请稍后重试';
@@ -91,8 +92,8 @@ function bindHomeEvents() {
 
     // 确认加入
     btnConfirmJoin.addEventListener('click', async () => {
-        // 检查 PeerJS 是否加载完成
-        if (!isPeerJSReady()) {
+        // 检查 Pusher 是否加载完成
+        if (!isNetworkReady()) {
             showToast('网络组件正在加载，请稍后再试');
             return;
         }
@@ -120,7 +121,9 @@ function bindHomeEvents() {
         } catch (err) {
             console.error('加入房间错误:', err);
             let errorMsg = err.message || '未知错误';
-            if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
+            if (errorMsg.includes('配置')) {
+                errorMsg = '请先配置 Pusher key（查看 network.js 第 30 行）';
+            } else if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
                 errorMsg = '连接服务器超时，请检查网络后重试';
             } else if (errorMsg.includes('unavailable')) {
                 errorMsg = '网络服务不可用，请稍后重试';

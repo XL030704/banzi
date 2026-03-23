@@ -1,21 +1,44 @@
 /**
- * 网络通信模块 - 使用 PeerJS 实现 P2P 通信
+ * 网络通信模块 - 使用 PubNub 实现实时通信
+ *
+ * 使用方式：
+ * 1. 前往 https://www.pubnub.com/ 注册账号（可用邮箱）
+ * 2. 创建一个新的 App
+ * 3. 获取 Publish Key 和 Subscribe Key 填入下方配置
+ * 4. 在 App 设置中启用 "Storage & Playback"（可选，用于消息历史）
  */
 
 class NetworkManager {
     constructor() {
-        this.peer = null;
-        this.connections = []; // 与其他玩家的连接
+        this.pubnub = null;
         this.roomId = null;
         this.playerId = null;
         this.playerName = '';
-        this.position = -1; // 玩家在房间中的位置
+        this.position = -1;
         this.isHost = false;
-        this.players = []; // [null, null, null, null] 每个位置的玩家信息
+        this.players = [null, null, null, null];
         this.onMessageCallback = null;
         this.onPlayerJoinCallback = null;
         this.onPlayerLeaveCallback = null;
         this.onConnectionReady = null;
+        this.subscribed = false;
+    }
+
+    // ============================================
+    // PubNub 配置 - 请替换为你自己的密钥
+    // ============================================
+    getPubNubConfig() {
+        return {
+            // ⚠️ 重要：请替换为你自己的 PubNub 密钥
+            // 1. 前往 https://admin.pubnub.com/ 创建账号
+            // 2. 创建一个新的 App
+            // 3. 复制 Publish Key 和 Subscribe Key 到下面
+            publishKey: 'pub-c-e426e521-32f3-4841-b02e-d943c9afa2f3',    // ← 替换为你的 Publish Key
+            subscribeKey: 'sub-c-a1282cea-0d93-4bda-8132-c8892e586960', // ← 替换为你的 Subscribe Key
+
+            // 用户唯一标识
+            uuid: this.generateId()
+        };
     }
 
     // 生成随机ID
@@ -28,111 +51,82 @@ class NetworkManager {
         return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
-    // 初始化 Peer
-    initPeer(customId = null) {
+    // 初始化 PubNub
+    initPubNub() {
         return new Promise((resolve, reject) => {
-            this.playerId = customId || this.generateId();
+            const config = this.getPubNubConfig();
 
-            // 使用多个可用的 PeerJS 服务器
-            const peerOptions = {
-                host: '0.peerjs.com',
-                port: 443,
-                secure: true,
-                debug: 1,
-                config: {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
-                    ]
-                }
-            };
+            // 检查是否已经配置了密钥
+            if (config.publishKey === 'your-publish-key' || config.subscribeKey === 'your-subscribe-key') {
+                reject(new Error('请先配置 PubNub 密钥。请前往 https://www.pubnub.com 注册并获取密钥。'));
+                return;
+            }
 
-            console.log('Connecting to PeerJS with ID:', this.playerId);
-            this.peer = new Peer(this.playerId, peerOptions);
+            this.playerId = config.uuid;
 
-            // 连接超时处理
-            const timeout = setTimeout(() => {
-                reject(new Error('连接服务器超时，请检查网络'));
-            }, 15000);
-
-            this.peer.on('open', (id) => {
-                clearTimeout(timeout);
-                console.log('Peer connected with ID:', id);
-                this.playerId = id;
-                if (this.onConnectionReady) this.onConnectionReady();
-                resolve(id);
-            });
-
-            this.peer.on('error', (err) => {
-                clearTimeout(timeout);
-                console.error('Peer error:', err);
-                reject(err);
-            });
-
-            // 监听其他玩家的连接
-            this.peer.on('connection', (conn) => {
-                this.handleIncomingConnection(conn);
-            });
-        });
-    }
-
-    // 处理传入的连接
-    handleIncomingConnection(conn) {
-        console.log('Incoming connection from:', conn.peer);
-
-        conn.on('open', () => {
-            this.connections.push(conn);
-
-            // 如果是房主，发送房间信息给新玩家
-            if (this.isHost) {
-                this.sendToPeer(conn.peer, {
-                    type: 'room_info',
-                    roomId: this.roomId,
-                    players: this.players,
-                    yourPosition: this.findEmptyPosition()
+            try {
+                this.pubnub = new PubNub({
+                    publishKey: config.publishKey,
+                    subscribeKey: config.subscribeKey,
+                    uuid: config.uuid
                 });
+
+                // 监听连接状态
+                this.pubnub.addListener({
+                    status: (event) => {
+                        if (event.category === 'PNConnectedCategory') {
+                            console.log('PubNub connected');
+                            if (this.onConnectionReady) this.onConnectionReady();
+                            resolve(this.playerId);
+                        }
+                    },
+                    message: (event) => {
+                        this.handleMessage(event.message, event.publisher);
+                    },
+                    presence: (event) => {
+                        console.log('Presence event:', event);
+                    }
+                });
+
+                // 超时处理
+                setTimeout(() => {
+                    if (!this.subscribed) {
+                        reject(new Error('连接超时，请检查网络后重试'));
+                    }
+                }, 15000);
+
+            } catch (err) {
+                reject(new Error('初始化网络组件失败: ' + err.message));
             }
-        });
-
-        conn.on('data', (data) => {
-            this.handleMessage(data, conn.peer);
-        });
-
-        conn.on('close', () => {
-            this.removeConnection(conn.peer);
-        });
-
-        conn.on('error', (err) => {
-            console.error('Connection error:', err);
-            this.removeConnection(conn.peer);
         });
     }
 
-    // 查找空位置
-    findEmptyPosition() {
-        for (let i = 0; i < 4; i++) {
-            if (!this.players[i]) return i;
-        }
-        return -1;
+    // 订阅房间频道
+    subscribeToRoom(roomId) {
+        return new Promise((resolve) => {
+            const channel = `banzi-room-${roomId}`;
+
+            this.pubnub.subscribe({
+                channels: [channel],
+                withPresence: true
+            });
+
+            this.subscribed = true;
+            resolve();
+        });
     }
 
-    // 移除连接
-    removeConnection(peerId) {
-        const index = this.connections.findIndex(c => c.peer === peerId);
-        if (index !== -1) {
-            this.connections.splice(index, 1);
-        }
-
-        // 更新玩家列表
-        for (let i = 0; i < 4; i++) {
-            if (this.players[i] && this.players[i].id === peerId) {
-                this.players[i] = null;
-                if (this.onPlayerLeaveCallback) {
-                    this.onPlayerLeaveCallback(i);
-                }
-                break;
+    // 发布消息到房间
+    publish(message) {
+        const channel = `banzi-room-${this.roomId}`;
+        return this.pubnub.publish({
+            channel: channel,
+            message: {
+                ...message,
+                senderId: this.playerId,
+                timestamp: Date.now()
             }
-        }
+        });
     }
 
     // 创建房间
@@ -142,12 +136,22 @@ class NetworkManager {
         this.roomId = this.generateRoomCode();
         this.position = 0;
 
-        await this.initPeer(this.roomId + '_host');
+        await this.initPubNub();
+        await this.subscribeToRoom(this.roomId);
 
         this.players = [
             { id: this.playerId, name: playerName, position: 0 },
             null, null, null
         ];
+
+        // 广播房间创建消息
+        setTimeout(() => {
+            this.publish({
+                type: 'room_created',
+                roomId: this.roomId,
+                hostId: this.playerId
+            });
+        }, 500);
 
         return this.roomId;
     }
@@ -158,105 +162,61 @@ class NetworkManager {
         this.isHost = false;
         this.roomId = roomCode;
 
-        await this.initPeer();
+        await this.initPubNub();
+        await this.subscribeToRoom(this.roomId);
 
-        // 连接到房主
-        const hostId = roomCode + '_host';
         return new Promise((resolve, reject) => {
-            const conn = this.peer.connect(hostId, {
-                reliable: true,
-                serialization: 'json'
+            // 发送加入请求
+            this.publish({
+                type: 'join_request',
+                playerId: this.playerId,
+                playerName: playerName
             });
 
-            conn.on('open', () => {
-                this.connections.push(conn);
-
-                // 发送加入请求
-                this.sendToPeer(hostId, {
-                    type: 'join_request',
-                    playerId: this.playerId,
-                    playerName: playerName
-                });
-            });
-
-            conn.on('data', (data) => {
-                if (data.type === 'room_info') {
-                    this.position = data.yourPosition;
-                    this.players = data.players;
-                    this.players[this.position] = {
-                        id: this.playerId,
-                        name: playerName,
-                        position: this.position
-                    };
-
-                    // 连接到其他玩家
-                    this.connectToOtherPlayers();
-                    resolve(data);
-                } else if (data.type === 'join_rejected') {
-                    reject(new Error(data.reason || '房间已满'));
-                } else {
-                    this.handleMessage(data, conn.peer);
+            // 设置一次性监听器等待响应
+            const checkResponse = setInterval(() => {
+                // 如果 position 已经被设置（通过 room_info 消息），则完成
+                if (this.position !== -1) {
+                    clearInterval(checkResponse);
+                    resolve({
+                        roomId: this.roomId,
+                        players: this.players,
+                        yourPosition: this.position
+                    });
                 }
-            });
-
-            conn.on('error', (err) => {
-                reject(err);
-            });
+            }, 100);
 
             // 超时处理
             setTimeout(() => {
+                clearInterval(checkResponse);
                 if (this.position === -1) {
-                    reject(new Error('连接超时，请检查房间号'));
+                    reject(new Error('连接超时，请检查房间号是否正确'));
                 }
             }, 10000);
         });
     }
 
-    // 连接到其他玩家
-    connectToOtherPlayers() {
-        for (const player of this.players) {
-            if (player && player.id !== this.playerId) {
-                this.connectToPeer(player.id);
-            }
-        }
-    }
+    // 处理收到的消息
+    handleMessage(data, publisherId) {
+        // 忽略自己的消息
+        if (data.senderId === this.playerId) return;
 
-    // 连接到指定Peer
-    connectToPeer(peerId) {
-        if (this.connections.some(c => c.peer === peerId)) return;
-
-        const conn = this.peer.connect(peerId, {
-            reliable: true,
-            serialization: 'json'
-        });
-
-        conn.on('open', () => {
-            console.log('Connected to:', peerId);
-            this.connections.push(conn);
-        });
-
-        conn.on('data', (data) => {
-            this.handleMessage(data, peerId);
-        });
-
-        conn.on('close', () => {
-            this.removeConnection(peerId);
-        });
-
-        conn.on('error', (err) => {
-            console.error('Connection error to', peerId, ':', err);
-            this.removeConnection(peerId);
-        });
-    }
-
-    // 处理消息
-    handleMessage(data, fromPeerId) {
-        console.log('Received message:', data, 'from:', fromPeerId);
+        console.log('Received message:', data, 'from:', publisherId);
 
         switch (data.type) {
             case 'join_request':
                 if (this.isHost) {
                     this.handleJoinRequest(data);
+                }
+                break;
+
+            case 'room_info':
+                if (!this.isHost && data.targetPlayerId === this.playerId) {
+                    this.position = data.yourPosition;
+                    this.players = data.players;
+                    if (this.onMessageCallback) {
+                        this.onMessageCallback(data);
+                    }
                 }
                 break;
 
@@ -273,28 +233,19 @@ class NetworkManager {
                 }
                 break;
 
+            case 'player_leave':
+                this.handlePlayerLeave(data.playerId);
+                break;
+
             case 'game_start':
-                if (this.onMessageCallback) {
-                    this.onMessageCallback(data);
-                }
-                break;
-
-            case 'game_action':
-                if (this.onMessageCallback) {
-                    this.onMessageCallback(data);
-                }
-                break;
-
             case 'sync_state':
+            case 'game_action':
+            case 'baopai_decision':
+            case 'baopai_approved':
                 if (this.onMessageCallback) {
                     this.onMessageCallback(data);
                 }
                 break;
-
-            default:
-                if (this.onMessageCallback) {
-                    this.onMessageCallback(data);
-                }
         }
     }
 
@@ -303,8 +254,9 @@ class NetworkManager {
         const position = this.findEmptyPosition();
 
         if (position === -1) {
-            this.sendToPeer(data.playerId, {
+            this.publish({
                 type: 'join_rejected',
+                targetPlayerId: data.playerId,
                 reason: '房间已满'
             });
             return;
@@ -318,41 +270,61 @@ class NetworkManager {
         };
 
         // 通知新玩家
-        this.sendToPeer(data.playerId, {
-            type: 'room_info',
-            roomId: this.roomId,
-            players: this.players,
-            yourPosition: position
-        });
+        setTimeout(() => {
+            this.publish({
+                type: 'room_info',
+                targetPlayerId: data.playerId,
+                roomId: this.roomId,
+                players: this.players,
+                yourPosition: position
+            });
+        }, 100);
 
         // 广播给所有玩家
-        this.broadcast({
-            type: 'player_joined',
-            playerId: data.playerId,
-            playerName: data.playerName,
-            position: position
-        }, data.playerId);
+        setTimeout(() => {
+            this.publish({
+                type: 'player_joined',
+                playerId: data.playerId,
+                playerName: data.playerName,
+                position: position
+            });
+        }, 200);
 
         if (this.onPlayerJoinCallback) {
             this.onPlayerJoinCallback(position, data.playerName);
         }
     }
 
-    // 发送消息给指定Peer
-    sendToPeer(peerId, data) {
-        const conn = this.connections.find(c => c.peer === peerId);
-        if (conn && conn.open) {
-            conn.send(data);
+    // 处理玩家离开
+    handlePlayerLeave(playerId) {
+        for (let i = 0; i < 4; i++) {
+            if (this.players[i] && this.players[i].id === playerId) {
+                this.players[i] = null;
+                if (this.onPlayerLeaveCallback) {
+                    this.onPlayerLeaveCallback(i);
+                }
+                break;
+            }
         }
+    }
+
+    // 查找空位置
+    findEmptyPosition() {
+        for (let i = 0; i < 4; i++) {
+            if (!this.players[i]) return i;
+        }
+        return -1;
+    }
+
+    // 发送消息给指定Peer（PubNub中通过channel广播）
+    sendToPeer(peerId, data) {
+        this.publish(data);
     }
 
     // 广播消息
     broadcast(data, excludePeerId = null) {
-        for (const conn of this.connections) {
-            if (conn.open && conn.peer !== excludePeerId) {
-                conn.send(data);
-            }
-        }
+        if (excludePeerId === this.playerId) return;
+        this.publish(data);
     }
 
     // 发送游戏动作
@@ -365,15 +337,7 @@ class NetworkManager {
             timestamp: Date.now()
         };
 
-        if (this.isHost) {
-            this.broadcast(data);
-        } else {
-            // 发送给房主，由房主广播
-            const hostConn = this.connections.find(c => c.peer === this.roomId + '_host');
-            if (hostConn) {
-                hostConn.send(data);
-            }
-        }
+        this.broadcast(data);
     }
 
     // 房主广播游戏状态
@@ -388,20 +352,24 @@ class NetworkManager {
 
     // 离开房间
     leaveRoom() {
-        for (const conn of this.connections) {
-            conn.close();
-        }
-        this.connections = [];
+        if (this.pubnub && this.roomId) {
+            // 通知其他玩家
+            this.publish({
+                type: 'player_leave',
+                playerId: this.playerId
+            });
 
-        if (this.peer) {
-            this.peer.destroy();
-            this.peer = null;
+            // 取消订阅
+            this.pubnub.unsubscribe({
+                channels: [`banzi-room-${this.roomId}`]
+            });
         }
 
         this.roomId = null;
         this.position = -1;
         this.isHost = false;
-        this.players = [];
+        this.players = [null, null, null, null];
+        this.subscribed = false;
     }
 
     // 获取当前房间玩家数
@@ -428,28 +396,25 @@ class NetworkManager {
 // 创建全局网络管理器实例
 const network = new NetworkManager();
 
-// 加载 PeerJS 库
-function loadPeerJS() {
+// 加载 PubNub 库
+function loadPubNub() {
     return new Promise((resolve, reject) => {
-        if (window.Peer) {
+        if (window.PubNub) {
             resolve();
             return;
         }
 
         const script = document.createElement('script');
-        script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
+        script.src = 'https://cdn.pubnub.com/sdk/javascript/pubnub.4.37.0.min.js';
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load PeerJS'));
+        script.onerror = () => reject(new Error('Failed to load PubNub'));
         document.head.appendChild(script);
     });
 }
 
-// 导出到全局
-if (typeof window !== 'undefined') {
-    window.NetworkManager = NetworkManager;
-    window.loadPeerJS = loadPeerJS;
-    window.network = network;
-    window.MockNetwork = MockNetwork;
+// 为了兼容性，保留旧函数名
+function loadPusher() {
+    return loadPubNub();
 }
 
 // 模拟网络（单人测试模式）
@@ -504,4 +469,13 @@ class MockNetwork {
     getRealPlayerCount() {
         return this.players.filter(p => p !== null && !p.isRobot).length;
     }
+}
+
+// 导出到全局
+if (typeof window !== 'undefined') {
+    window.NetworkManager = NetworkManager;
+    window.loadPubNub = loadPubNub;
+    window.loadPusher = loadPusher;
+    window.network = network;
+    window.MockNetwork = MockNetwork;
 }
