@@ -39,9 +39,9 @@ function bindHomeEvents() {
     const btnConfirmJoin = document.getElementById('btn-confirm-join');
     const btnCancelJoin = document.getElementById('btn-cancel-join');
 
-    // 检查 Pusher 是否已加载
+    // 检查网络组件是否已加载
     function isNetworkReady() {
-        return typeof window.Pusher !== 'undefined' && window.Pusher;
+        return typeof window.PubNub !== 'undefined' && window.PubNub;
     }
 
     // 创建房间

@@ -63,8 +63,10 @@ class NetworkManager {
             }
 
             this.playerId = config.uuid;
+            let isResolved = false;
 
             try {
+                console.log('正在初始化 PubNub...');
                 this.pubnub = new PubNub({
                     publishKey: config.publishKey,
                     subscribeKey: config.subscribeKey,
@@ -74,26 +76,33 @@ class NetworkManager {
                 // 监听连接状态
                 this.pubnub.addListener({
                     status: (event) => {
-                        if (event.category === 'PNConnectedCategory') {
-                            console.log('PubNub connected');
+                        console.log('PubNub status:', event.category);
+                        if (event.category === 'PNConnectedCategory' && !isResolved) {
+                            isResolved = true;
+                            console.log('PubNub 已连接');
                             if (this.onConnectionReady) this.onConnectionReady();
                             resolve(this.playerId);
                         }
                     },
                     message: (event) => {
                         this.handleMessage(event.message, event.publisher);
-                    },
-                    presence: (event) => {
-                        console.log('Presence event:', event);
                     }
+                });
+
+                // 先订阅一个测试频道来触发连接
+                this.pubnub.subscribe({
+                    channels: ['test-connection']
                 });
 
                 // 超时处理
                 setTimeout(() => {
-                    if (!this.subscribed) {
-                        reject(new Error('连接超时，请检查网络后重试'));
+                    if (!isResolved) {
+                        console.log('连接超时，但继续尝试...');
+                        // 尝试直接使用，不等待连接确认
+                        isResolved = true;
+                        resolve(this.playerId);
                     }
-                }, 15000);
+                }, 5000);
 
             } catch (err) {
                 reject(new Error('初始化网络组件失败: ' + err.message));
