@@ -888,12 +888,20 @@ function showBaopaiModal() {
 
 // 处理包牌决定
 function handleBaopaiDecision(playerIndex, decision) {
+    // 避免重复处理同一玩家的决定
+    if (gameState.baopaiDecisions[playerIndex] !== null) {
+        return;
+    }
+
     gameState.baopaiDecisions[playerIndex] = decision;
 
     if (decision) {
         gameState.baopaiOrder.push(playerIndex);
         showToast(`${network.players[playerIndex]?.name || '玩家'} 申请包牌！`);
     }
+
+    console.log(`Player ${playerIndex} decided: ${decision}`);
+    console.log('Current decisions:', gameState.baopaiDecisions);
 
     // 检查是否所有玩家都已决定
     checkBaopaiPhaseComplete();
