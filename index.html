@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>贵州板子 - 多人联机扑克</title>
+    <link rel="stylesheet" href="css/style.css?v=2">
+</head>
+<body>
+    <div id="app">
+        <!-- 首页 -->
+        <div id="home-page" class="page active">
+            <div class="home-container">
+                <h1 class="game-title">🎴 贵州板子</h1>
+                <p class="game-subtitle">4人联机扑克游戏</p>
+
+                <div class="button-group">
+                    <button id="btn-create-room" class="btn btn-primary">创建房间</button>
+                    <button id="btn-join-room" class="btn btn-secondary">加入房间</button>
+                    <button id="btn-rules" class="btn btn-info">规则说明</button>
+                </div>
+
+                <!-- 加入房间输入框 -->
+                <div id="join-room-panel" class="panel hidden">
+                    <input type="text" id="room-code-input" maxlength="6" placeholder="请输入6位房间号">
+                    <input type="text" id="player-name-input" maxlength="10" placeholder="请输入昵称">
+                    <button id="btn-confirm-join" class="btn btn-primary">确认加入</button>
+                    <button id="btn-cancel-join" class="btn btn-text">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 房间等待页 -->
+        <div id="room-page" class="page">
+            <div class="room-container">
+                <div class="room-header">
+                    <h2>房间号: <span id="room-code-display">------</span></h2>
+                    <button id="btn-copy-code" class="btn btn-small">复制</button>
+                </div>
+
+                <div class="players-seats">
+                    <div class="seat" data-position="0">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">空位</div>
+                        <div class="seat-status">等待中</div>
+                    </div>
+                    <div class="seat" data-position="1">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">空位</div>
+                        <div class="seat-status">等待中</div>
+                    </div>
+                    <div class="seat" data-position="2">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">空位</div>
+                        <div class="seat-status">等待中</div>
+                    </div>
+                    <div class="seat" data-position="3">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">空位</div>
+                        <div class="seat-status">等待中</div>
+                    </div>
+                </div>
+
+                <div class="room-actions">
+                    <button id="btn-add-robot" class="btn btn-info">添加机器人</button>
+                    <button id="btn-start-game" class="btn btn-primary hidden">开始游戏</button>
+                    <button id="btn-leave-room" class="btn btn-text">离开房间</button>
+                </div>
+                <div class="robot-info" id="robot-info" style="text-align: center; margin-top: 10px; font-size: 12px; color: #888;">
+                    点击"添加机器人"补足人数
+                </div>
+
+                <div id="baopai-status" class="status-bar hidden">
+                    <span id="baopai-player"></span> 申请包牌
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏页面 -->
+        <div id="game-page" class="page">
+            <div class="game-container">
+                <!-- 顶部信息栏 -->
+                <div class="game-header">
+                    <div class="header-left">
+                        <span>房间: <span id="game-room-code">------</span></span>
+                    </div>
+                    <div class="header-center">
+                        <span>底分: <span id="base-score">1</span></span>
+                        <span id="multiplier-display" class="multiplier"></span>
+                        <span id="called-card-display" class="called-card hidden"></span>
+                    </div>
+                    <div class="header-right">
+                        <button id="btn-game-rules" class="btn btn-small">规则</button>
+                    </div>
+                </div>
+
+                <!-- 游戏区域 -->
+                <div class="game-table">
+                    <!-- 其他玩家区域 -->
+                    <div class="player-top" data-player="2">
+                        <div class="player-info">
+                            <div class="player-avatar">?</div>
+                            <div class="player-name">玩家3</div>
+                            <div class="player-cards">13张</div>
+                            <div class="spade7-indicator hidden">♠7</div>
+                            <div class="called-card-indicator hidden"></div>
+                        </div>
+                    </div>
+
+                    <div class="player-left" data-player="1">
+                        <div class="player-info">
+                            <div class="player-avatar">?</div>
+                            <div class="player-name">玩家2</div>
+                            <div class="player-cards">13张</div>
+                            <div class="spade7-indicator hidden">♠7</div>
+                            <div class="called-card-indicator hidden"></div>
+                        </div>
+                    </div>
+
+                    <div class="player-right" data-player="3">
+                        <div class="player-info">
+                            <div class="player-avatar">?</div>
+                            <div class="player-name">玩家4</div>
+                            <div class="player-cards">13张</div>
+                            <div class="spade7-indicator hidden">♠7</div>
+                            <div class="called-card-indicator hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- 桌面牌区 -->
+                    <div class="table-center">
+                        <div id="turn-indicator" class="turn-indicator">等待开始...</div>
+                        <div id="played-cards-area" class="played-cards"></div>
+                        <div id="last-winner" class="last-winner"></div>
+                    </div>
+                </div>
+
+                <!-- 自己的手牌区 -->
+                <div class="my-hand-area">
+                    <div class="my-info">
+                        <span id="my-name">我</span>
+                        <span id="spade7-badge" class="spade7-badge hidden">♠7</span>
+                        <span id="called-card-badge" class="called-card-badge hidden"></span>
+                        <span id="my-card-count">13张</span>
+                    </div>
+                    <div id="my-hand" class="my-hand"></div>
+                    <div class="action-buttons">
+                        <button id="btn-play-cards" class="btn btn-primary">出牌</button>
+                        <button id="btn-pass" class="btn btn-secondary" disabled>不要</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 喊牌弹窗 -->
+        <div id="call-card-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>🎴 你持有黑桃7，请喊牌</h3>
+                <p>选择一张自己没有的牌，持有该牌的玩家将成为你的队友</p>
+                <div class="call-options">
+                    <div class="call-row">
+                        <label>花色:</label>
+                        <select id="call-suit">
+                            <option value="spade">♠ 黑桃</option>
+                            <option value="heart">♥ 红桃</option>
+                            <option value="club">♣ 梅花</option>
+                            <option value="diamond">♦ 方块</option>
+                        </select>
+                    </div>
+                    <div class="call-row">
+                        <label>点数:</label>
+                        <select id="call-rank">
+                            <option value="2">2</option>
+                            <option value="A">A</option>
+                        </select>
+                    </div>
+                </div>
+                <p id="call-error" class="error-text"></p>
+                <button id="btn-confirm-call" class="btn btn-primary">确认喊牌</button>
+            </div>
+        </div>
+
+        <!-- 包牌确认弹窗 -->
+        <div id="baopai-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>⚡ 包牌申请</h3>
+                <p id="baopai-message"></p>
+                <div class="modal-buttons">
+                    <button id="btn-confirm-baopai" class="btn btn-primary">确认</button>
+                    <button id="btn-cancel-baopai" class="btn btn-secondary">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收牌提示 -->
+        <div id="collect-modal" class="modal hidden">
+            <div class="modal-content small">
+                <h3>🎯 <span id="collect-player"></span> 收牌</h3>
+                <p>获得 <span id="collect-count">0</span> 张牌</p>
+            </div>
+        </div>
+
+        <!-- 本局结算弹窗 -->
+        <div id="result-modal" class="modal hidden">
+            <div class="modal-content large">
+                <h3>🏆 本局结束</h3>
+                <div id="result-content"></div>
+                <div class="modal-buttons">
+                    <button id="btn-play-again" class="btn btn-primary">再来一局</button>
+                    <button id="btn-end-game" class="btn btn-secondary">结束游戏</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最终结算弹窗 -->
+        <div id="final-result-modal" class="modal hidden">
+            <div class="modal-content large">
+                <h3>🎉 游戏结束 - 最终结算</h3>
+                <div id="final-result-content"></div>
+                <div class="modal-buttons">
+                    <button id="btn-back-lobby-final" class="btn btn-primary">返回大厅</button>
+                    <button id="btn-view-history" class="btn btn-secondary">查看分数记录</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分数历史弹窗 -->
+        <div id="history-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>📊 分数记录</h3>
+                <div id="history-content"></div>
+                <button id="btn-close-history" class="btn btn-primary">关闭</button>
+            </div>
+        </div>
+
+        <!-- 规则弹窗 -->
+        <div id="rules-modal" class="modal hidden">
+            <div class="modal-content large">
+                <h3>📖 贵州板子规则</h3>
+                <div class="rules-content">
+                    <h4>一、基础信息</h4>
+                    <ul>
+                        <li>人数：4人</li>
+                        <li>用牌：去掉大小王，共52张牌</li>
+                        <li>发牌：每人13张</li>
+                        <li>持有黑桃7的玩家为该局核心</li>
+                    </ul>
+
+                    <h4>二、分队规则（2v2）</h4>
+                    <ul>
+                        <li>拿到黑桃7的人先喊牌</li>
+                        <li>优先喊：花色 + 2（必须是自己没有的那张2）</li>
+                        <li>如果自己有4张2，则改喊：花色 + A（也必须自己没有）</li>
+                        <li>持有被喊到那张牌的玩家，和黑桃7玩家结成一队</li>
+                        <li>剩下两人为另一队</li>
+                        <li>队友身份不能明说，只能在打牌中判断</li>
+                    </ul>
+
+                    <h4>三、包牌规则（1v3）</h4>
+                    <ul>
+                        <li>若任意玩家觉得自己牌好，可喊包牌：自己1人VS另外3人</li>
+                        <li>赢：包牌者最先出完牌</li>
+                        <li>输：其他3人中任意一人先出完</li>
+                        <li>多人抢包：按黑桃7持有者逆时针顺序，靠前的优先</li>
+                        <li>包牌局：底分×2</li>
+                    </ul>
+
+                    <h4>四、牌型大小（从大到小）</h4>
+                    <ol>
+                        <li><strong>连三炸弹（最大）</strong>：3组及以上连续三张，如333444555</li>
+                        <li><strong>四张炸弹</strong>：四张相同，如AAAA</li>
+                        <li><strong>滚龙</strong>：3组及以上连续对子，如334455</li>
+                        <li><strong>三张炸弹</strong>：三张相同，如AAA</li>
+                        <li><strong>普通牌型</strong>：单张、对子、顺子（≥3张连续单牌）</li>
+                    </ol>
+                    <p>规则：所有炸弹 > 所有普通牌型；同类型炸弹比点数：2最大，3最小；同类型牌型也比点数。压牌自愿，可压可不压。</p>
+
+                    <h4>五、出牌与收牌</h4>
+                    <ul>
+                        <li>第一轮：黑桃7玩家先出牌</li>
+                        <li>回合：一直轮到没人能压为止</li>
+                        <li>最后压牌的人：收走桌面上本轮所有牌，获得下一轮出牌权</li>
+                        <li>游戏直到某一队两人都出完牌结束</li>
+                    </ul>
+
+                    <h4>六、胜负判定</h4>
+                    <ul>
+                        <li><strong>正常局（2v2）</strong>：比较两队收牌总数，多的一方赢</li>
+                        <li>特殊规则：第4个出完的人，他收的所有牌只能和「全场第1名」合并算总数</li>
+                        <li><strong>双出（直接赢）</strong>：一队两人都比对面两人先出完，直接赢，底分×2</li>
+                    </ul>
+
+                    <h4>七、翻倍规则（可无限叠加）</h4>
+                    <ul>
+                        <li>每出现1个四张炸弹 → ×2</li>
+                        <li>每出现1个连三炸弹 → ×2</li>
+                        <li>滚龙、三张炸弹不翻倍</li>
+                        <li>多个则多次翻倍：×2×2×2...</li>
+                    </ul>
+
+                    <h4>八、计分规则</h4>
+                    <ul>
+                        <li>底分默认：1分</li>
+                        <li>先把所有翻倍条件算完，得到最终分数</li>
+                        <li>输家每个人，给赢家每个人最终分数</li>
+                    </ul>
+                </div>
+                <button id="btn-close-rules" class="btn btn-primary">关闭</button>
+            </div>
+        </div>
+
+        <!-- 消息提示 -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="js/network.js?v=2"></script>
+    <script src="js/game.js?v=2"></script>
+    <script src="js/ui.js?v=2"></script>
+    <script src="js/main.js?v=2"></script>
+</body>
+</html>
