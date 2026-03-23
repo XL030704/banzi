@@ -975,6 +975,17 @@ function checkBaopaiPhaseComplete() {
             if (gameState.robots[selectedBaopai]) {
                 setTimeout(() => robotPlay(selectedBaopai), 1000);
             }
+
+            // 房主广播包牌成功
+            if (network.isHost) {
+                network.broadcast({
+                    type: 'baopai_approved',
+                    player: selectedBaopai,
+                    teams: gameState.teams,
+                    multiplier: gameState.multiplier,
+                    multiplierReasons: gameState.multiplierReasons
+                });
+            }
         } else {
             // 无人包牌，进入喊牌阶段
             gameState.phase = 'calling';
@@ -990,6 +1001,15 @@ function checkBaopaiPhaseComplete() {
             // 如果是机器人喊牌
             if (gameState.robots[gameState.spade7Holder]) {
                 setTimeout(() => robotCallCard(gameState.spade7Holder), 1500);
+            }
+
+            // 房主广播状态转换
+            if (network.isHost) {
+                network.broadcast({
+                    type: 'phase_change',
+                    phase: 'calling',
+                    spade7Holder: gameState.spade7Holder
+                });
             }
         }
     }

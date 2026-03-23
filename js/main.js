@@ -399,10 +399,30 @@ function handleNetworkMessage(data) {
 
         case 'baopai_approved':
             gameState.baopaiPlayer = data.player;
-            gameState.multiplier *= 2;
-            gameState.multiplierReasons.push('包牌×2');
-            showToast(`${network.players[data.player].name} 包牌成功！底分×2`);
+            gameState.teams = data.teams || [1, 1, 1, 1];
+            gameState.teams[data.player] = 0;
+            gameState.multiplier = data.multiplier || 2;
+            gameState.multiplierReasons = data.multiplierReasons || ['包牌×2'];
+            gameState.phase = 'playing';
+            gameState.currentPlayer = data.player;
+            showToast(`${network.players[data.player]?.name || '玩家'} 包牌成功！1 VS 3`);
             updateGameDisplay();
+            break;
+
+        case 'phase_change':
+            // 处理阶段转换（包牌->喊牌）
+            if (data.phase === 'calling') {
+                gameState.phase = 'calling';
+                gameState.spade7Holder = data.spade7Holder;
+                gameState.currentPlayer = data.spade7Holder;
+                showToast('无人包牌，进入喊牌阶段');
+                updateGameDisplay();
+
+                // 如果自己是黑桃7持有者，显示喊牌弹窗
+                if (gameState.spade7Holder === network.position) {
+                    setTimeout(() => showCallCardModal(), 500);
+                }
+            }
             break;
     }
 }
