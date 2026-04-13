@@ -171,6 +171,9 @@ function updatePlayerInfo(elementIndex, playerIndex) {
     const player = network.players[playerIndex];
     const infoEl = el.querySelector('.player-info');
 
+    // 同步 data-player 属性，确保被喊牌标识能正确定位
+    el.dataset.player = playerIndex;
+
     if (player) {
         el.querySelector('.player-name').textContent = player.name;
         el.querySelector('.player-cards').textContent = `${gameState.hands[playerIndex].length}张`;
@@ -336,8 +339,15 @@ function updateActionButtons() {
 
             if (!lastHand) {
                 // 新的一轮开始，可以出任意有效牌型
-                canPlay = true;
-                console.log('canPlay = true: new round');
+                // 但第一轮必须包含黑桃7
+                if (gameState.playedCards.length === 0) {
+                    const hasSpade7 = selectedCards.some(c => c.suit === 'spade' && c.rank === '7');
+                    canPlay = hasSpade7;
+                    console.log('canPlay first round spade7 check:', canPlay);
+                } else {
+                    canPlay = true;
+                    console.log('canPlay = true: new round');
+                }
             } else {
                 // 需要压牌
                 canPlay = window.compareHands(lastHand, currentHandType);
@@ -618,8 +628,16 @@ function playCards() {
             showToast('无法压制上家的牌');
             return;
         }
+    } else {
+        // 如果是新一轮，检查是否是游戏第一轮且包含黑桃7
+        if (gameState.playedCards.length === 0) {
+            const hasSpade7 = selectedCards.some(c => c.suit === 'spade' && c.rank === '7');
+            if (!hasSpade7) {
+                showToast('第一轮必须出黑桃7');
+                return;
+            }
+        }
     }
-    // 如果是新一轮（!lastHand），只要牌型有效就可以出
 
     // 发送出牌消息（深拷贝）
     network.sendGameAction('play_cards', { cards: [...selectedCards] });
@@ -683,7 +701,19 @@ function handlePlayCards(playerIndex, cards) {
         gameState.finishOrder.push(playerIndex);
         showToast(`${network.players[playerIndex].name} 出完牌了!`);
 
-        // 检查游戏是否结束（某一队两人都出完）
+        // 包牌局：只要有人出完，游戏立即结束
+        if (gameState.baopaiPlayer !== -1) {
+            // 将剩余未出完的人按当前顺序加入 finishOrder
+            for (let i = 0; i < 4; i++) {
+                if (!gameState.finishOrder.includes(i)) {
+                    gameState.finishOrder.push(i);
+                }
+            }
+            endGame();
+            return;
+        }
+
+        // 检查游戏是否结束（正常局：某一队两人都出完）
         const playerTeam = gameState.teams[playerIndex];
         const teamFinished = gameState.finishOrder.filter(p => gameState.teams[p] === playerTeam);
         if (teamFinished.length >= 2) {
@@ -870,8 +900,6 @@ function showBaopaiModal() {
     document.getElementById('btn-confirm-baopai').onclick = () => {
         clearInterval(gameState.baopaiTimer);
         modal.classList.add('hidden');
-        gameState.baopaiDecisions[network.position] = true;
-        gameState.baopaiOrder.push(network.position);
         network.sendGameAction('baopai_decision', { decision: true });
         handleBaopaiDecision(network.position, true);
     };
@@ -880,7 +908,6 @@ function showBaopaiModal() {
     document.getElementById('btn-cancel-baopai').onclick = () => {
         clearInterval(gameState.baopaiTimer);
         modal.classList.add('hidden');
-        gameState.baopaiDecisions[network.position] = false;
         network.sendGameAction('baopai_decision', { decision: false });
         handleBaopaiDecision(network.position, false);
     };
@@ -1183,6 +1210,7 @@ function startNewRound() {
     gameState.phase = 'baopai';
     gameState.baopaiDecisions = [null, null, null, null];
     gameState.baopaiOrder = [];
+    gameState.baopaiCountdown = 10;
 
     // 更新界面
     updateGameDisplay();
@@ -1219,6 +1247,11 @@ function showFinalGameResult() {
 
     // 显示最终结算
     showFinalResult();
+}
+
+// 处理包牌请求（占位，避免未定义错误）
+function handleBaopaiRequest(fromPlayer) {
+    console.log('收到包牌请求 from:', fromPlayer);
 }
 
 // 显示最终结算弹窗

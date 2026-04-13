@@ -353,7 +353,6 @@ function calculateFinalResult(gameState) {
 
     // 包牌局结算
     if (baopaiPlayer !== -1) {
-        const baopaiTeam = teams[baopaiPlayer];
         const baopaiFinishPos = finishOrder.indexOf(baopaiPlayer);
 
         // 包牌者第一个出完则赢
@@ -428,13 +427,15 @@ function calculateFinalResult(gameState) {
     }
 
     // 计算输赢
-    let winnerTeam = result.team0Cards > result.team1Cards ? 0 : 1;
+    const winnerTeam = result.team0Cards > result.team1Cards ? 0 : 1;
+    const winnerCount = result.team0Cards > result.team1Cards ? result.team0Players.length : result.team1Players.length;
+    const loserCount = result.team0Cards > result.team1Cards ? result.team1Players.length : result.team0Players.length;
 
     for (let i = 0; i < 4; i++) {
         if (teams[i] === winnerTeam) {
-            result.scores[i] = baseScore * result.multiplier;
+            result.scores[i] = baseScore * result.multiplier * loserCount;
         } else {
-            result.scores[i] = -baseScore * result.multiplier;
+            result.scores[i] = -baseScore * result.multiplier * winnerCount;
         }
     }
 
@@ -682,65 +683,85 @@ class RobotPlayer {
 
         switch (lastHand.type) {
             case HAND_TYPES.SINGLE:
-                // 找所有比它大的单张
-                for (const v of values) {
-                    if (v > lastHand.value) {
-                        moves.push([groups[v][0]]);
-                    }
-                }
-                break;
-
             case HAND_TYPES.PAIR:
-                // 找所有比它大的对子
-                for (const v of values) {
-                    if (v > lastHand.value && groups[v].length >= 2) {
-                        moves.push(groups[v].slice(0, 2));
-                    }
-                }
-                break;
-
             case HAND_TYPES.STRAIGHT:
-                // 找所有能压的顺子
-                moves.push(...this.findStraights(hand, lastHand));
+                // 普通牌型：同类型且更大
+                if (lastHand.type === HAND_TYPES.SINGLE) {
+                    for (const v of values) {
+                        if (v > lastHand.value) moves.push([groups[v][0]]);
+                    }
+                } else if (lastHand.type === HAND_TYPES.PAIR) {
+                    for (const v of values) {
+                        if (v > lastHand.value && groups[v].length >= 2) {
+                            moves.push(groups[v].slice(0, 2));
+                        }
+                    }
+                } else if (lastHand.type === HAND_TYPES.STRAIGHT) {
+                    moves.push(...this.findStraights(hand, lastHand));
+                }
+                // 普通牌型可以用任何炸弹压
+                this.addBombMoves(hand, moves, true, true, true, true);
                 break;
 
             case HAND_TYPES.THREE:
-                // 三张炸弹可以压任何普通牌型
+                // 三张炸弹：更大的三张压
                 for (const v of values) {
-                    if (groups[v].length === 3) {
+                    if (v > lastHand.value && groups[v].length === 3) {
                         moves.push(groups[v]);
                     }
                 }
+                // 滚龙、四张、连三可以压三张
+                this.addBombMoves(hand, moves, false, true, true, true);
+                break;
+
+            case HAND_TYPES.ROLLING:
+                // 滚龙：更大的滚龙压
+                moves.push(...this.findRollings(hand, lastHand));
+                // 四张、连三可以压滚龙（三张不能压滚龙）
+                this.addBombMoves(hand, moves, false, false, true, true);
                 break;
 
             case HAND_TYPES.FOUR:
-                // 四张炸弹压四张炸弹
+                // 四张炸弹：更大的四张压
                 for (const v of values) {
                     if (v > lastHand.value && groups[v].length === 4) {
                         moves.push(groups[v]);
                     }
                 }
+                // 连三可以压四张
+                this.addBombMoves(hand, moves, false, false, false, true);
+                break;
+
+            case HAND_TYPES.CHAIN_THREE:
+                // 连三炸弹：更大的连三压
+                moves.push(...this.findChainThrees(hand, lastHand));
                 break;
         }
 
-        // 炸弹可以压任何普通牌型
-        if (lastHand.type !== HAND_TYPES.FOUR &&
-            lastHand.type !== HAND_TYPES.CHAIN_THREE) {
-            // 添加所有炸弹选项
-            for (const v of values) {
-                if (groups[v].length === 4) {
-                    moves.push(groups[v]);
-                }
-                if (groups[v].length === 3) {
-                    moves.push(groups[v]);
-                }
-            }
+        return moves;
+    }
 
-            // 添加连三炸弹
+    // 添加炸弹选项
+    addBombMoves(hand, moves, allowThree, allowRolling, allowFour, allowChainThree) {
+        const groups = this.groupByValue(hand);
+        const values = Object.keys(groups).map(Number);
+
+        if (allowThree) {
+            for (const v of values) {
+                if (groups[v].length === 3) moves.push(groups[v]);
+            }
+        }
+        if (allowRolling) {
+            moves.push(...this.findRollings(hand));
+        }
+        if (allowFour) {
+            for (const v of values) {
+                if (groups[v].length === 4) moves.push(groups[v]);
+            }
+        }
+        if (allowChainThree) {
             moves.push(...this.findChainThrees(hand));
         }
-
-        return moves;
     }
 
     // 找所有顺子
@@ -776,7 +797,7 @@ class RobotPlayer {
     }
 
     // 找所有连三炸弹
-    findChainThrees(hand) {
+    findChainThrees(hand, targetHand = null) {
         const chains = [];
         const groups = this.groupByValue(hand);
         const values = Object.keys(groups)
@@ -787,6 +808,12 @@ class RobotPlayer {
         // 找至少3个连续的有3张的点数
         for (let i = 0; i <= values.length - 3; i++) {
             if (values[i + 1] === values[i] + 1 && values[i + 2] === values[i] + 2) {
+                const len = 3;
+                const maxValue = values[i + 2];
+                if (targetHand) {
+                    if (len < targetHand.length) continue;
+                    if (len === targetHand.length && maxValue <= targetHand.value) continue;
+                }
                 const cards = [
                     ...groups[values[i]].slice(0, 3),
                     ...groups[values[i + 1]].slice(0, 3),
@@ -797,6 +824,44 @@ class RobotPlayer {
         }
 
         return chains;
+    }
+
+    // 找所有滚龙
+    findRollings(hand, targetHand = null) {
+        const rollings = [];
+        const groups = this.groupByValue(hand);
+        const values = Object.keys(groups)
+            .map(Number)
+            .filter(v => groups[v].length >= 2)
+            .sort((a, b) => a - b);
+
+        for (let i = 0; i <= values.length - 3; i++) {
+            let chainLen = 1;
+            for (let j = i + 1; j < values.length; j++) {
+                if (values[j] === values[j - 1] + 1) chainLen++;
+                else break;
+            }
+            if (chainLen >= 3) {
+                for (let start = i; start <= i + chainLen - 3; start++) {
+                    // 实际连续对子组数
+                    const actualLen = 3 + (i + chainLen - 3 - start);
+                    const maxValue = values[start + actualLen - 1];
+                    if (targetHand) {
+                        if (actualLen < targetHand.length) continue;
+                        if (actualLen === targetHand.length && maxValue <= targetHand.value) continue;
+                    }
+                    const cards = [];
+                    for (let k = 0; k < actualLen; k++) {
+                        cards.push(...groups[values[start + k]].slice(0, 2));
+                    }
+                    rollings.push(cards);
+                    // 只取最短能压的即可（机器人策略：优先经济）
+                    break;
+                }
+            }
+        }
+
+        return rollings;
     }
 }
 

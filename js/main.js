@@ -354,13 +354,14 @@ function handleNetworkMessage(data) {
     switch (data.type) {
         case 'game_start':
             if (!network.isHost) {
-                // 非主机：创建机器人实例
+                // 非主机：准备机器人数据，等待 sync_state 来初始化游戏
                 let robotsArray = [null, null, null, null];
                 if (data.robots) {
                     robotsArray = data.robots.map(r => r ? new RobotPlayer(r.position, r.difficulty) : null);
                 }
-                showToast('游戏开始');
-                initGame(null, robotsArray);
+                // 临时存储机器人，等 sync_state 时使用
+                window.pendingRobots = robotsArray;
+                showToast('游戏开始，等待同步...');
             }
             break;
 
@@ -372,19 +373,31 @@ function handleNetworkMessage(data) {
                 }
                 Object.assign(gameState, data.state);
 
-                // 重建机器人实例
-                if (data.state.robots) {
+                // 使用暂存的机器人数据或从状态重建
+                if (window.pendingRobots) {
+                    gameState.robots = window.pendingRobots;
+                    window.pendingRobots = null;
+                } else if (data.state.robots) {
                     gameState.robots = data.state.robots.map(r =>
                         r ? new RobotPlayer(r.position, r.difficulty) : null
                     );
                 }
 
+                // 显示游戏页面
+                showPage('game');
+
+                // 如果处于包牌阶段，显示包牌弹窗
+                if (gameState.phase === 'baopai') {
+                    showBaopaiModal();
+                }
+
+                // 更新界面
+                updateGameDisplay();
+
                 // 如果当前轮到机器人出牌，触发它
                 if (gameState.phase === 'playing' && gameState.robots[gameState.currentPlayer]) {
                     setTimeout(() => robotPlay(gameState.currentPlayer), 1000);
                 }
-
-                updateGameDisplay();
             }
             break;
 

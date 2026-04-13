@@ -193,6 +193,11 @@ class NetworkManager {
                         yourPosition: this.position
                     });
                 }
+                // 如果被拒绝
+                if (this.position === -2) {
+                    clearInterval(checkResponse);
+                    reject(new Error(data.reason || '房间已满，加入被拒绝'));
+                }
             }, 100);
 
             // 超时处理
@@ -239,6 +244,12 @@ class NetworkManager {
                     if (this.onPlayerJoinCallback) {
                         this.onPlayerJoinCallback(data.position, data.playerName);
                     }
+                }
+                break;
+
+            case 'join_rejected':
+                if (!this.isHost && data.targetPlayerId === this.playerId) {
+                    this.position = -2; // 标记为被拒绝
                 }
                 break;
 
