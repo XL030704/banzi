@@ -427,15 +427,16 @@ function calculateFinalResult(gameState) {
     }
 
     // 计算输赢
+    // 2v2 规则：赢家和输家一对一配对，每人的最终得分 = 底分 × 倍数
+    // （每个输家只给一位赢家这么多分，不重复乘对方人数）
     const winnerTeam = result.team0Cards > result.team1Cards ? 0 : 1;
-    const winnerCount = result.team0Cards > result.team1Cards ? result.team0Players.length : result.team1Players.length;
-    const loserCount = result.team0Cards > result.team1Cards ? result.team1Players.length : result.team0Players.length;
+    const perPlayerScore = baseScore * result.multiplier;
 
     for (let i = 0; i < 4; i++) {
         if (teams[i] === winnerTeam) {
-            result.scores[i] = baseScore * result.multiplier * loserCount;
+            result.scores[i] = perPlayerScore;
         } else {
-            result.scores[i] = -baseScore * result.multiplier * winnerCount;
+            result.scores[i] = -perPlayerScore;
         }
     }
 
