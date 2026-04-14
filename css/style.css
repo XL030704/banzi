@@ -974,3 +974,51 @@ html, body {
     font-weight: bold;
     box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
 }
+
+/* ==================== 喊牌弹窗选项按钮组 ==================== */
+.option-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.option-btn {
+    flex: 1 1 auto;
+    min-width: 72px;
+    padding: 10px 12px;
+    background: #fff;
+    color: #333;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.option-btn.option-red {
+    color: #d32f2f;
+}
+
+.option-btn:hover {
+    border-color: #4caf50;
+    transform: translateY(-1px);
+}
+
+.option-btn.selected {
+    background: #2e7d32;
+    color: #fff;
+    border-color: #ffd700;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+.option-btn.selected.option-red {
+    color: #ffd1d1;
+}
+
+/* 叠放出牌区：hover 时把当前牌抬起来看清楚 */
+#played-cards-area .card:hover {
+    transform: translateY(-6px);
+    z-index: 100 !important;
+}

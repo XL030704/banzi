@@ -160,19 +160,16 @@
                 <div class="call-options">
                     <div class="call-row">
                         <label>花色:</label>
-                        <select id="call-suit">
-                            <option value="spade">♠ 黑桃</option>
-                            <option value="heart">♥ 红桃</option>
-                            <option value="club">♣ 梅花</option>
-                            <option value="diamond">♦ 方块</option>
-                        </select>
+                        <div id="call-suit" class="option-group">
+                            <button type="button" class="option-btn" data-value="spade">♠ 黑桃</button>
+                            <button type="button" class="option-btn option-red" data-value="heart">♥ 红桃</button>
+                            <button type="button" class="option-btn" data-value="club">♣ 梅花</button>
+                            <button type="button" class="option-btn option-red" data-value="diamond">♦ 方块</button>
+                        </div>
                     </div>
                     <div class="call-row">
                         <label>点数:</label>
-                        <select id="call-rank">
-                            <option value="2">2</option>
-                            <option value="A">A</option>
-                        </select>
+                        <div id="call-rank" class="option-group"></div>
                     </div>
                 </div>
                 <p id="call-error" class="error-text"></p>

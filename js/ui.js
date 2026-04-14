@@ -8,6 +8,51 @@ let selectedCards = [];
 let myPosition = -1;
 let isHost = false;
 
+// 出牌音效（基于 Web Audio API，无需外部文件）
+let _audioCtx = null;
+function playCardSound() {
+    try {
+        if (!_audioCtx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            _audioCtx = new AudioCtx();
+        }
+        const ctx = _audioCtx;
+        // 模拟纸牌"啪"的短音：一个快速衰减的带噪声点击
+        const now = ctx.currentTime;
+        const duration = 0.08;
+
+        // 主体：短促方波 click
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(380, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + duration);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+
+        // 叠加噪声让声音更像纸牌
+        const bufSize = ctx.sampleRate * duration;
+        const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const data = noiseBuf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+        }
+        const noise = ctx.createBufferSource();
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.08, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        noise.buffer = noiseBuf;
+        noise.connect(noiseGain).connect(ctx.destination);
+        noise.start(now);
+    } catch (e) {
+        // 忽略音效错误，不影响游戏
+    }
+}
+
 // DOM 元素
 const pages = {
     home: document.getElementById('home-page'),
@@ -266,12 +311,15 @@ function updatePlayedCards() {
         const cardsEl = document.createElement('div');
         cardsEl.style.cssText = 'display: flex;';
 
-        // 桌面上的牌也按从小到大显示
+        // 桌面上的牌也按从小到大显示，叠放显示（只露出左侧数字/花色）
         const sortedCards = [...play.cards].sort((a, b) => a.value - b.value);
-        for (const card of sortedCards) {
+        for (let i = 0; i < sortedCards.length; i++) {
+            const card = sortedCards[i];
             const cardEl = document.createElement('div');
             cardEl.className = `card ${card.suit}`;
-            cardEl.style.cssText = `width: var(--card-width); height: var(--card-height); margin: 0 2px;`;
+            // 第一张正常显示，后续每张向左压盖，只露出左上角数字+花色（约 22px）
+            const overlap = i === 0 ? '0' : 'calc(var(--card-width) * -1 + 22px)';
+            cardEl.style.cssText = `width: var(--card-width); height: var(--card-height); margin-left: ${overlap}; position: relative; z-index: ${i};`;
             cardEl.innerHTML = `
                 <div class="card-rank">${card.rank}</div>
                 <div class="card-suit">${SUIT_SYMBOLS[card.suit]}</div>
@@ -362,51 +410,62 @@ function updateActionButtons() {
 // 显示喊牌弹窗
 function showCallCardModal() {
     const modal = document.getElementById('call-card-modal');
-    const suitSelect = document.getElementById('call-suit');
-    const rankSelect = document.getElementById('call-rank');
+    const suitGroup = document.getElementById('call-suit');
+    const rankGroup = document.getElementById('call-rank');
     const errorEl = document.getElementById('call-error');
 
     modal.classList.remove('hidden');
     errorEl.textContent = '';
 
-    // 检查是否有4张2
     const myHand = gameState.hands[network.position];
     const hasFourTwos = countTwos(myHand) === 4;
 
-    // 更新点数选项
-    rankSelect.innerHTML = '';
-    if (hasFourTwos) {
-        rankSelect.innerHTML = '<option value="A">A</option>';
-    } else {
-        rankSelect.innerHTML = '<option value="2">2</option><option value="A">A</option>';
+    // 构造点数按钮
+    const rankOptions = hasFourTwos ? ['A'] : ['2', 'A'];
+    rankGroup.innerHTML = rankOptions
+        .map(r => `<button type="button" class="option-btn" data-value="${r}">${r}</button>`)
+        .join('');
+
+    // 当前选择（默认第一项）
+    let selectedSuit = 'spade';
+    let selectedRank = rankOptions[0];
+
+    // 为按钮组绑定点击事件：点击即选中，清除同组其它选中态
+    function bindGroup(groupEl, onSelect) {
+        const btns = groupEl.querySelectorAll('.option-btn');
+        btns.forEach(b => {
+            b.onclick = () => {
+                btns.forEach(x => x.classList.remove('selected'));
+                b.classList.add('selected');
+                onSelect(b.dataset.value);
+                validateCall();
+            };
+        });
+        // 默认选中第一个
+        if (btns.length > 0) {
+            btns[0].classList.add('selected');
+        }
     }
 
-    // 检查可用的喊牌
-    function validateCall() {
-        const suit = suitSelect.value;
-        const rank = rankSelect.value;
+    bindGroup(suitGroup, v => { selectedSuit = v; });
+    bindGroup(rankGroup, v => { selectedRank = v; });
 
-        if (hasCard(myHand, suit, rank)) {
-            errorEl.textContent = `你不能喊自己有的牌（${SUIT_SYMBOLS[suit]}${rank}）`;
+    function validateCall() {
+        if (hasCard(myHand, selectedSuit, selectedRank)) {
+            errorEl.textContent = `你不能喊自己有的牌（${SUIT_SYMBOLS[selectedSuit]}${selectedRank}）`;
             return false;
         }
-
         errorEl.textContent = '';
         return true;
     }
 
-    suitSelect.onchange = validateCall;
-    rankSelect.onchange = validateCall;
+    validateCall();
 
     document.getElementById('btn-confirm-call').onclick = () => {
         if (validateCall()) {
-            const suit = suitSelect.value;
-            const rank = rankSelect.value;
             modal.classList.add('hidden');
-
-            // 发送喊牌消息
-            network.sendGameAction('call_card', { suit, rank });
-            handleCallCard(network.position, suit, rank);
+            network.sendGameAction('call_card', { suit: selectedSuit, rank: selectedRank });
+            handleCallCard(network.position, selectedSuit, selectedRank);
         }
     };
 }
@@ -636,6 +695,9 @@ function playCards() {
 
 // 处理出牌
 function handlePlayCards(playerIndex, cards) {
+    // 播放出牌音效
+    playCardSound();
+
     // 从手牌中移除
     const hand = gameState.hands[playerIndex];
     for (const card of cards) {
