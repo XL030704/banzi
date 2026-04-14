@@ -978,22 +978,23 @@ html, body {
 /* ==================== 喊牌弹窗选项按钮组 ==================== */
 .option-group {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;       /* 四个花色强制并排一行 */
+    gap: 6px;
     margin-top: 6px;
 }
 
 .option-btn {
-    flex: 1 1 auto;
-    min-width: 72px;
-    padding: 10px 12px;
+    flex: 1 1 0;             /* 四等分可用宽度 */
+    min-width: 0;            /* 允许按钮收缩以保持单行 */
+    padding: 10px 6px;
     background: #fff;
     color: #333;
     border: 2px solid #ccc;
     border-radius: 8px;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: bold;
     cursor: pointer;
+    white-space: nowrap;
     transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
 }
 

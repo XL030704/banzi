@@ -18,36 +18,60 @@ function playCardSound() {
             _audioCtx = new AudioCtx();
         }
         const ctx = _audioCtx;
-        // 模拟纸牌"啪"的短音：一个快速衰减的带噪声点击
         const now = ctx.currentTime;
-        const duration = 0.08;
 
-        // 主体：短促方波 click
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(380, now);
-        osc.frequency.exponentialRampToValueAtTime(140, now + duration);
-        gain.gain.setValueAtTime(0.18, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + duration);
-
-        // 叠加噪声让声音更像纸牌
-        const bufSize = ctx.sampleRate * duration;
-        const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        // 模拟欢乐斗地主出牌声："嗖"一下滑出 + 轻微"啪"的落点
+        // 核心：带通滤波的白噪声，频率从高到低快速扫过 => 类似纸牌划过的摩擦声
+        const duration = 0.11;
+        const sr = ctx.sampleRate;
+        const bufSize = Math.floor(sr * duration);
+        const noiseBuf = ctx.createBuffer(1, bufSize, sr);
         const data = noiseBuf.getChannelData(0);
         for (let i = 0; i < bufSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+            data[i] = Math.random() * 2 - 1;
         }
         const noise = ctx.createBufferSource();
-        const noiseGain = ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.08, now);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
         noise.buffer = noiseBuf;
-        noise.connect(noiseGain).connect(ctx.destination);
+
+        // 带通滤波，频率从 4500Hz 快速扫到 900Hz，形成 "whoosh" 效果
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = 1.2;
+        bp.frequency.setValueAtTime(4500, now);
+        bp.frequency.exponentialRampToValueAtTime(900, now + duration);
+
+        // 高通进一步去掉低频闷响
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 600;
+
+        // 包络：快速起音 + 平滑衰减
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.0001, now);
+        noiseGain.gain.linearRampToValueAtTime(0.25, now + 0.008);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        noise.connect(bp);
+        bp.connect(hp);
+        hp.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
         noise.start(now);
+        noise.stop(now + duration);
+
+        // 尾部轻微"嗒"一下落点（低频短脉冲）
+        const clickDelay = 0.055;
+        const clickDur = 0.03;
+        const click = ctx.createOscillator();
+        const clickGain = ctx.createGain();
+        click.type = 'sine';
+        click.frequency.setValueAtTime(220, now + clickDelay);
+        click.frequency.exponentialRampToValueAtTime(90, now + clickDelay + clickDur);
+        clickGain.gain.setValueAtTime(0.0001, now + clickDelay);
+        clickGain.gain.linearRampToValueAtTime(0.12, now + clickDelay + 0.003);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + clickDelay + clickDur);
+        click.connect(clickGain).connect(ctx.destination);
+        click.start(now + clickDelay);
+        click.stop(now + clickDelay + clickDur);
     } catch (e) {
         // 忽略音效错误，不影响游戏
     }
@@ -420,8 +444,8 @@ function showCallCardModal() {
     const myHand = gameState.hands[network.position];
     const hasFourTwos = countTwos(myHand) === 4;
 
-    // 构造点数按钮
-    const rankOptions = hasFourTwos ? ['A'] : ['2', 'A'];
+    // 构造点数按钮：默认只能喊 2；当持有全部 4 张 2 时，只能喊 A
+    const rankOptions = hasFourTwos ? ['A'] : ['2'];
     rankGroup.innerHTML = rankOptions
         .map(r => `<button type="button" class="option-btn" data-value="${r}">${r}</button>`)
         .join('');
