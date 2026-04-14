@@ -262,6 +262,8 @@ class NetworkManager {
             case 'game_action':
             case 'baopai_decision':
             case 'baopai_approved':
+            case 'phase_change':
+            case 'new_round_started':
                 if (this.onMessageCallback) {
                     this.onMessageCallback(data);
                 }
