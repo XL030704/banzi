@@ -707,9 +707,10 @@ function playCards() {
     }
     // 第一轮：黑桃7持有者先出牌，但不要求必须出黑桃7
 
-    // 发送出牌消息（深拷贝）
-    network.sendGameAction('play_cards', { cards: [...selectedCards] });
-    handlePlayCards(network.position, [...selectedCards]);
+    // 发送出牌消息（深拷贝）— 同时生成音效随机种子，让 4 个客户端听到同一段语音
+    const audioSeed = Math.random();
+    network.sendGameAction('play_cards', { cards: [...selectedCards], audioSeed });
+    handlePlayCards(network.position, [...selectedCards], audioSeed);
 
     // 清空选择
     selectedCards = [];
@@ -718,13 +719,14 @@ function playCards() {
 }
 
 // 处理出牌
-function handlePlayCards(playerIndex, cards) {
+function handlePlayCards(playerIndex, cards, audioSeed) {
     // 播放出牌音效（带语音：单张/对子按点数；炸弹族统一炸弹；顺子统一顺子；
-    // 压牌时在「点数语音 / 管上 / 大你」三者中随机）
+    // 压牌时在「点数语音 / 管上 / 大你」三者中随机；audioSeed 由出牌方广播，
+    // 保证 4 个客户端听到同一段语音）
     const _isPressing = gameState.currentRoundCards.length > 0;
     const _ht = analyzeHand(cards);
     if (window.GameAudio) {
-        GameAudio.playPlay(_ht, _isPressing);
+        GameAudio.playPlay(_ht, _isPressing, audioSeed);
     } else {
         playCardSound();
     }
@@ -833,14 +835,15 @@ function pass() {
     if (gameState.currentPlayer !== network.position) return;
     if (gameState.currentRoundCards.length === 0) return;
 
-    network.sendGameAction('pass', {});
-    handlePass(network.position);
+    const audioSeed = Math.random();
+    network.sendGameAction('pass', { audioSeed });
+    handlePass(network.position, audioSeed);
 }
 
 // 处理不要
-function handlePass(playerIndex) {
-    // 不要 / 要不起 - 随机播放一个
-    if (window.GameAudio) GameAudio.playPass();
+function handlePass(playerIndex, audioSeed) {
+    // 不要 / 要不起 - 随机播放一个（用 audioSeed 让所有客户端听到同一句）
+    if (window.GameAudio) GameAudio.playPass(audioSeed);
 
     // 记录这个玩家已经pass
     if (!gameState.roundPassedPlayers.includes(playerIndex)) {
@@ -1206,14 +1209,16 @@ function robotPlay(robotIndex) {
         // 出牌（深拷贝）
         const cardsToPlay = [...selectedCards];
         setTimeout(() => {
-            network.sendGameAction('play_cards', { cards: cardsToPlay });
-            handlePlayCards(robotIndex, cardsToPlay);
+            const audioSeed = Math.random();
+            network.sendGameAction('play_cards', { cards: cardsToPlay, audioSeed });
+            handlePlayCards(robotIndex, cardsToPlay, audioSeed);
         }, 1000);
     } else {
         // 不要
         setTimeout(() => {
-            network.sendGameAction('pass', {});
-            handlePass(robotIndex);
+            const audioSeed = Math.random();
+            network.sendGameAction('pass', { audioSeed });
+            handlePass(robotIndex, audioSeed);
         }, 1000);
     }
 }

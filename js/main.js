@@ -475,7 +475,7 @@ function handleGameAction(action, payload, from) {
             break;
 
         case 'play_cards':
-            handlePlayCards(from, payload.cards);
+            handlePlayCards(from, payload.cards, payload.audioSeed);
             // 延迟检查是否需要机器人行动
             setTimeout(() => {
                 if (window.gameState && window.gameState.phase === 'playing' &&
@@ -486,7 +486,7 @@ function handleGameAction(action, payload, from) {
             break;
 
         case 'pass':
-            handlePass(from);
+            handlePass(from, payload.audioSeed);
             // 延迟检查是否需要机器人行动
             setTimeout(() => {
                 if (window.gameState && window.gameState.phase === 'playing' &&

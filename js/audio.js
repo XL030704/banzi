@@ -78,16 +78,20 @@ function _play(file) {
     }
 }
 
-function _randomPick(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
+function _randomPick(arr, seed) {
+    // seed 在 [0,1) 之间时，用它做确定性挑选；否则用 Math.random
+    const r = (typeof seed === 'number' && seed >= 0 && seed < 1) ? seed : Math.random();
+    return arr[Math.floor(r * arr.length)];
 }
 
 /**
  * 出牌音效。
  * @param {Object} handType analyzeHand 返回结果，含 type 与 cards
  * @param {boolean} isPressing 是否在压上家的牌
+ * @param {number} [seed] [0,1) 之间的随机种子（由出牌的客户端生成并广播，
+ *                        让 4 个客户端听到同一段语音）
  */
-function playPlay(handType, isPressing) {
+function playPlay(handType, isPressing, seed) {
     if (!handType) return;
 
     // 炸弹族：三张/四张/滚龙/连三 全部用炸弹音效
@@ -118,7 +122,7 @@ function playPlay(handType, isPressing) {
         if (rankFile) choices.push(rankFile);
         choices.push(AUDIO_FILES.cover);
         choices.push(AUDIO_FILES.bigger);
-        _play(_randomPick(choices));
+        _play(_randomPick(choices, seed));
     } else {
         _play(rankFile);
     }
@@ -126,9 +130,10 @@ function playPlay(handType, isPressing) {
 
 /**
  * 不要 / 要不起 — 随机
+ * @param {number} [seed] 同 playPlay
  */
-function playPass() {
-    _play(_randomPick([AUDIO_FILES.pass, AUDIO_FILES.cantBeat]));
+function playPass(seed) {
+    _play(_randomPick([AUDIO_FILES.pass, AUDIO_FILES.cantBeat], seed));
 }
 
 /**
