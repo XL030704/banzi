@@ -628,16 +628,8 @@ function playCards() {
             showToast('无法压制上家的牌');
             return;
         }
-    } else {
-        // 如果是新一轮，检查是否是游戏第一轮且包含黑桃7
-        if (gameState.playedCards.length === 0) {
-            const hasSpade7 = selectedCards.some(c => c.suit === 'spade' && c.rank === '7');
-            if (!hasSpade7) {
-                showToast('第一轮必须出黑桃7');
-                return;
-            }
-        }
     }
+    // 第一轮：黑桃7持有者先出牌，但不要求必须出黑桃7
 
     // 发送出牌消息（深拷贝）
     network.sendGameAction('play_cards', { cards: [...selectedCards] });
@@ -1195,8 +1187,20 @@ function initGame(initialState = null, robots = []) {
 
 // 再来一局
 function playAgain() {
+    // 联机模式下只有房主能触发再来一局
+    const realPlayers = typeof network.getRealPlayerCount === 'function' ? network.getRealPlayerCount() : 1;
+    if (!network.isHost && realPlayers > 1) {
+        showToast('只有房主可以开始下一局，请等待房主');
+        return;
+    }
+
     // 隐藏本局结算弹窗
     document.getElementById('result-modal').classList.add('hidden');
+
+    // 通知其他玩家隐藏结算弹窗并准备新一轮
+    if (network.isHost) {
+        network.broadcast({ type: 'new_round_started' });
+    }
 
     // 重置游戏状态（保留累计分数和玩家信息）
     gameState.resetForNewRound();
@@ -1249,6 +1253,26 @@ function startNewRound() {
 
     // 检查是否只有人类玩家未决定，如果是，立即检查阶段完成
     setTimeout(() => checkBaopaiPhaseComplete(), 2000);
+
+    // 房主广播新一轮状态给其他玩家
+    if (network.isHost) {
+        network.broadcastGameState({
+            deck: [],
+            hands: gameState.hands,
+            spade7Holder: gameState.spade7Holder,
+            phase: 'baopai',
+            currentPlayer: gameState.currentPlayer,
+            robots: gameState.robots.map((r, i) => r ? { position: i, difficulty: r.difficulty } : null),
+            totalScores: gameState.totalScores,
+            roundCount: gameState.roundCount,
+            roundHistory: gameState.roundHistory,
+            baopaiDecisions: gameState.baopaiDecisions,
+            baopaiOrder: gameState.baopaiOrder,
+            baopaiCountdown: gameState.baopaiCountdown,
+            multiplier: gameState.multiplier,
+            multiplierReasons: gameState.multiplierReasons
+        });
+    }
 
     showToast('第 ' + gameState.roundCount + ' 局开始！');
 }

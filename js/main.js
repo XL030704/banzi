@@ -417,6 +417,19 @@ function handleNetworkMessage(data) {
             handleGameAction(data.action, data.payload, data.from);
             break;
 
+        case 'new_round_started':
+            // 非房主：隐藏结算弹窗，准备接收新一轮的 sync_state
+            if (!network.isHost) {
+                document.getElementById('result-modal').classList.add('hidden');
+                const finalModal = document.getElementById('final-result-modal');
+                if (finalModal) finalModal.classList.add('hidden');
+                if (gameState) {
+                    gameState.resetForNewRound();
+                }
+                showToast('房主开始下一局...');
+            }
+            break;
+
         case 'baopai_decision':
             // 同步包牌决定
             handleBaopaiDecision(data.from, data.payload.decision);
