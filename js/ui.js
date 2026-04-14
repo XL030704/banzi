@@ -338,16 +338,9 @@ function updateActionButtons() {
             console.log('lastHand:', lastHand, 'currentRoundCards:', gameState.currentRoundCards);
 
             if (!lastHand) {
-                // 新的一轮开始，可以出任意有效牌型
-                // 但第一轮必须包含黑桃7
-                if (gameState.playedCards.length === 0) {
-                    const hasSpade7 = selectedCards.some(c => c.suit === 'spade' && c.rank === '7');
-                    canPlay = hasSpade7;
-                    console.log('canPlay first round spade7 check:', canPlay);
-                } else {
-                    canPlay = true;
-                    console.log('canPlay = true: new round');
-                }
+                // 新的一轮开始，可以出任意有效牌型（第一轮也不强制黑桃7）
+                canPlay = true;
+                console.log('canPlay = true: new round');
             } else {
                 // 需要压牌
                 canPlay = window.compareHands(lastHand, currentHandType);
