@@ -492,15 +492,32 @@ html, body {
 }
 
 .played-cards {
-    min-height: 100px;
+    min-height: 90px;
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: -20px;
-    padding: 10px;
+    align-content: flex-start;
+    gap: 0;
+    padding: 6px;
     background: rgba(0,0,0,0.2);
     border-radius: 12px;
-    max-width: 300px;
+    max-width: 320px;
+    /* 缩小桌面上展示的牌，避免出牌多了把上面的"底分/喊牌"信息挤出去 */
+    --card-width: 42px;
+    --card-height: 60px;
+}
+
+#played-cards-area .card {
+    font-size: 11px;
+}
+#played-cards-area .card .card-rank {
+    font-size: 13px;
+}
+#played-cards-area .card .card-suit {
+    font-size: 11px;
 }
 
 .last-winner {
@@ -817,7 +834,10 @@ html, body {
 
     .played-cards {
         max-width: 500px;
-        min-height: 120px;
+        min-height: 110px;
+        max-height: 260px;
+        --card-width: 50px;
+        --card-height: 70px;
     }
 
     .card {

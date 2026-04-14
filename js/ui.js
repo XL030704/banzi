@@ -318,7 +318,7 @@ function updatePlayedCards() {
     for (const play of gameState.currentRoundCards) {
         const playEl = document.createElement('div');
         playEl.className = 'play-group';
-        playEl.style.cssText = 'display: flex; flex-direction: column; align-items: center; margin: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;';
+        playEl.style.cssText = 'display: flex; flex-direction: column; align-items: center; margin: 3px; padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 6px;';
 
         // 获取玩家名称
         const player = network.players[play.player];
@@ -328,7 +328,7 @@ function updatePlayedCards() {
         const nameEl = document.createElement('div');
         nameEl.className = 'play-group-label';
         nameEl.textContent = playerName;
-        nameEl.style.cssText = 'color: #ffd700; font-size: 12px; margin-bottom: 6px; font-weight: bold;';
+        nameEl.style.cssText = 'color: #ffd700; font-size: 11px; margin-bottom: 3px; font-weight: bold; line-height: 1;';
         playEl.appendChild(nameEl);
 
         // 创建牌组容器
@@ -719,14 +719,27 @@ function playCards() {
 
 // 处理出牌
 function handlePlayCards(playerIndex, cards) {
-    // 播放出牌音效
-    playCardSound();
+    // 播放出牌音效（带语音：单张/对子按点数；炸弹族统一炸弹；顺子统一顺子；
+    // 压牌时在「点数语音 / 管上 / 大你」三者中随机）
+    const _isPressing = gameState.currentRoundCards.length > 0;
+    const _ht = analyzeHand(cards);
+    if (window.GameAudio) {
+        GameAudio.playPlay(_ht, _isPressing);
+    } else {
+        playCardSound();
+    }
 
     // 从手牌中移除
     const hand = gameState.hands[playerIndex];
     for (const card of cards) {
         const idx = hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
         if (idx !== -1) hand.splice(idx, 1);
+    }
+
+    // 出完后剩 1 / 2 张时报数（延迟一点，等出牌语音播完）
+    if (window.GameAudio && (hand.length === 1 || hand.length === 2)) {
+        const _remain = hand.length;
+        setTimeout(() => GameAudio.playRemaining(_remain), 900);
     }
 
     // 添加到当前回合（深拷贝，避免引用被修改）
@@ -826,6 +839,9 @@ function pass() {
 
 // 处理不要
 function handlePass(playerIndex) {
+    // 不要 / 要不起 - 随机播放一个
+    if (window.GameAudio) GameAudio.playPass();
+
     // 记录这个玩家已经pass
     if (!gameState.roundPassedPlayers.includes(playerIndex)) {
         gameState.roundPassedPlayers.push(playerIndex);
