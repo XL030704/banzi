@@ -966,6 +966,19 @@ function checkBaopaiPhaseComplete() {
         allDecided = true;
     }
 
+    // 兜底：如果所有机器人已决定、只剩人类未决定，且倒计时没在运行，重新拉起弹窗
+    if (!allDecided && !gameState.baopaiTimer) {
+        const myDecision = gameState.baopaiDecisions[network.position];
+        if (myDecision === null && !gameState.robots[network.position]) {
+            const modal = document.getElementById('baopai-modal');
+            if (modal && modal.classList.contains('hidden')) {
+                // 重置倒计时并重新弹窗，避免卡死
+                gameState.baopaiCountdown = 10;
+                showBaopaiModal();
+            }
+        }
+    }
+
     if (allDecided) {
         // 清除倒计时
         if (gameState.baopaiTimer) {
@@ -1215,8 +1228,8 @@ function startNewRound() {
     // 更新界面
     updateGameDisplay();
 
-    // 显示包牌选择弹窗（如果不是机器人）
-    if (gameState.spade7Holder === network.position) {
+    // 显示包牌选择弹窗（所有人类玩家都需决定是否包牌，不只是黑桃7持有者）
+    if (!gameState.robots[network.position]) {
         setTimeout(() => showBaopaiModal(), 500);
     }
 

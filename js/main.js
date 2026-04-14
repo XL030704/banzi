@@ -247,10 +247,22 @@ function bindRoomEvents() {
         }
     });
 
-    // 点击弹窗外部关闭
+    // 点击弹窗外部 = 视为"不包牌"（避免仅关闭弹窗导致卡死在包牌阶段）
     document.getElementById('baopai-modal').addEventListener('click', (e) => {
         if (e.target === e.currentTarget) {
-            document.getElementById('baopai-modal').classList.add('hidden');
+            const modal = document.getElementById('baopai-modal');
+            // 只有当本玩家还没做决定时才处理
+            if (window.gameState && gameState.baopaiDecisions &&
+                gameState.baopaiDecisions[network.position] === null) {
+                if (gameState.baopaiTimer) clearInterval(gameState.baopaiTimer);
+                modal.classList.add('hidden');
+                network.sendGameAction('baopai_decision', { decision: false });
+                if (window.handleBaopaiDecision) {
+                    window.handleBaopaiDecision(network.position, false);
+                }
+            } else {
+                modal.classList.add('hidden');
+            }
         }
     });
 }
