@@ -488,6 +488,11 @@ function handleGameAction(action, payload, from) {
                 window.handleBaopaiRequest(from);
             }
             break;
+
+        case 'baopai_decision':
+            // 同步其他玩家的包牌决定（联机关键路径）
+            handleBaopaiDecision(from, payload.decision);
+            break;
     }
 }
 
