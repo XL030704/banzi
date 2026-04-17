@@ -256,23 +256,19 @@ function updatePlayerInfo(elementIndex, playerIndex) {
             infoEl.classList.remove('active');
         }
 
-        // 时钟徽章（轮到该玩家出牌时显示）
+        // 时钟（轮到该玩家出牌时显示，位于张数旁）
         const clockEl = el.querySelector('.turn-clock');
-        if (clockEl) {
-            clockEl.classList.toggle('hidden', !isMyTurn);
-        }
+        if (clockEl) clockEl.classList.toggle('hidden', !isMyTurn);
 
-        // 黑桃7标识
+        // 黑桃7标识（位于张数旁）
         const spade7Indicator = el.querySelector('.spade7-indicator');
         if (spade7Indicator) {
             spade7Indicator.classList.toggle('hidden', gameState.spade7Holder !== playerIndex);
         }
 
-        // 托管标识
+        // 托管标识（位于张数旁）
         const tuoguanBadge = el.querySelector('.tuoguan-badge');
-        if (tuoguanBadge) {
-            tuoguanBadge.classList.toggle('hidden', !player.isTuoguan);
-        }
+        if (tuoguanBadge) tuoguanBadge.classList.toggle('hidden', !player.isTuoguan);
     }
 }
 
@@ -1272,6 +1268,10 @@ function initGame(initialState = null, robots = []) {
     // 保存会话（断线重连用）
     if (typeof saveSession === 'function') saveSession();
 
+    // 游戏中"新对局"按钮仅房主可见
+    const btnNewGameHdr = document.getElementById('btn-new-game-header');
+    if (btnNewGameHdr) btnNewGameHdr.classList.toggle('hidden', !network.isHost);
+
     // 显示包牌弹窗
     showBaopaiModal();
 
@@ -1293,6 +1293,16 @@ function initGame(initialState = null, robots = []) {
 
 // 准备状态追踪（房主端）
 let _readyPlayers = new Set();
+
+// 供 main.js 调用：添加一个已准备的玩家，凑齐后自动开始
+function handlePlayerReady(pos) {
+    _readyPlayers.add(pos);
+    const realCount = network.players.filter(p => p && !p.isRobot).length;
+    _updateReadyStatus();
+    if (_readyPlayers.size >= realCount) {
+        _doStartNextRound();
+    }
+}
 
 // 再来一局（房主点击）
 function playAgain() {
@@ -1334,9 +1344,10 @@ function readyForNext() {
     document.getElementById('btn-ready-next').textContent = '已准备';
 }
 
-// 新对局（重置所有积分重新开始）
+// 新对局（重置所有积分重新开始，可在游戏中或结算后调用）
 function startNewGame() {
     if (!network.isHost) { showToast('只有房主可以开启新对局'); return; }
+    if (!confirm('放弃当前局，重置所有积分开始新对局？')) return;
     document.getElementById('result-modal').classList.add('hidden');
     network.broadcast({ type: 'new_game_started' });
     if (gameState) {
@@ -1615,9 +1626,9 @@ if (typeof window !== 'undefined') {
     window.showHistoryModal = showHistoryModal;
     window.playAgain = playAgain;
     window.readyForNext = readyForNext;
+    window.handlePlayerReady = handlePlayerReady;
     window.startNewGame = startNewGame;
     window._doStartNextRound = _doStartNextRound;
-    window._readyPlayers = _readyPlayers;
     window._updateReadyStatus = _updateReadyStatus;
     window.leaveGame = leaveGame;
     window.showFinalGameResult = showFinalGameResult;

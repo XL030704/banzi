@@ -343,8 +343,13 @@ function bindGameEvents() {
         if (typeof readyForNext === 'function') readyForNext();
     });
 
-    // 新对局（重置积分）
+    // 新对局（重置积分，结算弹窗里）
     document.getElementById('btn-new-game').addEventListener('click', () => {
+        if (typeof startNewGame === 'function') startNewGame();
+    });
+
+    // 新对局（游戏中右上角，房主专用）
+    document.getElementById('btn-new-game-header').addEventListener('click', () => {
         if (typeof startNewGame === 'function') startNewGame();
     });
 
@@ -508,14 +513,9 @@ function handleNetworkMessage(data) {
             break;
 
         case 'player_ready':
-            // 房主：收集准备信号，所有人准备好后开始
+            // 房主通过 onMessageCallback 收到（注意：game_action 路径下也有同名分支）
             if (network.isHost && data.from !== undefined) {
-                window._readyPlayers.add(data.from);
-                const realCount = network.players.filter(p => p && !p.isRobot).length;
-                if (typeof window._updateReadyStatus === 'function') window._updateReadyStatus();
-                if (window._readyPlayers.size >= realCount) {
-                    if (typeof window._doStartNextRound === 'function') window._doStartNextRound();
-                }
+                if (typeof window.handlePlayerReady === 'function') window.handlePlayerReady(data.from);
             }
             break;
 
@@ -657,14 +657,9 @@ function handleGameAction(action, payload, from) {
             break;
 
         case 'player_ready':
-            // 广播给房主（房主通过 onMessageCallback 收到）
+            // game_action 路径（sendGameAction 包装）
             if (network.isHost) {
-                if (window._readyPlayers) window._readyPlayers.add(from);
-                const realCount = network.players.filter(p => p && !p.isRobot).length;
-                if (typeof window._updateReadyStatus === 'function') window._updateReadyStatus();
-                if (window._readyPlayers && window._readyPlayers.size >= realCount) {
-                    if (typeof window._doStartNextRound === 'function') window._doStartNextRound();
-                }
+                if (typeof window.handlePlayerReady === 'function') window.handlePlayerReady(from);
             }
             break;
     }
