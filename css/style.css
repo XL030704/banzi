@@ -410,7 +410,22 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+}
+
+/* 头像 + 徽章并列一行 */
+.player-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+}
+
+.player-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
 }
 
 .player-avatar {
@@ -422,6 +437,7 @@ html, body {
     align-items: center;
     justify-content: center;
     font-size: 18px;
+    flex-shrink: 0;
 }
 
 .player-info.active .player-avatar {
@@ -429,21 +445,51 @@ html, body {
     border: 2px solid #ffd700;
 }
 
+/* 时钟：轮到该玩家出牌时显示 */
+.turn-clock {
+    font-size: 18px;
+    animation: clockPulse 1s ease-in-out infinite;
+}
+.turn-clock.hidden { display: none; }
+
+/* 自己区域的时钟 */
+.my-turn-clock {
+    font-size: 18px;
+    animation: clockPulse 1s ease-in-out infinite;
+}
+.my-turn-clock.hidden { display: none; }
+
+@keyframes clockPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* 托管标志 */
+.tuoguan-badge {
+    background: #e67e22;
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+.tuoguan-badge.hidden { display: none; }
+
 /* 黑桃7标识 */
 .spade7-indicator {
     background: linear-gradient(145deg, #333, #000);
     color: #fff;
     border: 2px solid #ffd700;
     border-radius: 50%;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: bold;
-    margin-top: 5px;
-    box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
 }
 
 .spade7-indicator.hidden {
@@ -534,10 +580,34 @@ html, body {
 
 .my-info {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
     font-size: 14px;
+    gap: 6px;
 }
+
+.btn-danger-sm {
+    padding: 3px 8px;
+    font-size: 11px;
+    min-width: auto;
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: auto;
+}
+.btn-danger-sm:hover { background: #e74c3c; }
+
+/* 准备状态文字 */
+.ready-status {
+    text-align: center;
+    color: #f39c12;
+    font-size: 13px;
+    margin: 8px 0;
+}
+.ready-status.hidden { display: none; }
 
 .my-hand {
     display: flex;

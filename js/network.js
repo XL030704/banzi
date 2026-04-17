@@ -264,6 +264,11 @@ class NetworkManager {
             case 'baopai_approved':
             case 'phase_change':
             case 'new_round_started':
+            case 'new_game_started':
+            case 'start_prepare':
+            case 'player_tuoguan':
+            case 'reconnect_request':
+            case 'reconnect_info':
                 if (this.onMessageCallback) {
                     this.onMessageCallback(data);
                 }

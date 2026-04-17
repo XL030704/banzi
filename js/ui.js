@@ -240,7 +240,7 @@ function updatePlayerInfo(elementIndex, playerIndex) {
     const player = network.players[playerIndex];
     const infoEl = el.querySelector('.player-info');
 
-    // 同步 data-player 属性，确保被喊牌标识能正确定位
+    // 同步 data-player 属性
     el.dataset.player = playerIndex;
 
     if (player) {
@@ -248,21 +248,30 @@ function updatePlayerInfo(elementIndex, playerIndex) {
         el.querySelector('.player-cards').textContent = `${gameState.hands[playerIndex].length}张`;
         el.querySelector('.player-avatar').textContent = player.name.charAt(0).toUpperCase();
 
-        // 高亮当前玩家
-        if (gameState.currentPlayer === playerIndex) {
+        // 高亮当前玩家头像
+        const isMyTurn = gameState.phase === 'playing' && gameState.currentPlayer === playerIndex;
+        if (isMyTurn) {
             infoEl.classList.add('active');
         } else {
             infoEl.classList.remove('active');
         }
 
-        // 显示/隐藏黑桃7标识
+        // 时钟徽章（轮到该玩家出牌时显示）
+        const clockEl = el.querySelector('.turn-clock');
+        if (clockEl) {
+            clockEl.classList.toggle('hidden', !isMyTurn);
+        }
+
+        // 黑桃7标识
         const spade7Indicator = el.querySelector('.spade7-indicator');
         if (spade7Indicator) {
-            if (gameState.spade7Holder === playerIndex) {
-                spade7Indicator.classList.remove('hidden');
-            } else {
-                spade7Indicator.classList.add('hidden');
-            }
+            spade7Indicator.classList.toggle('hidden', gameState.spade7Holder !== playerIndex);
+        }
+
+        // 托管标识
+        const tuoguanBadge = el.querySelector('.tuoguan-badge');
+        if (tuoguanBadge) {
+            tuoguanBadge.classList.toggle('hidden', !player.isTuoguan);
         }
     }
 }
@@ -357,26 +366,43 @@ function updatePlayedCards() {
 }
 
 // 更新回合指示
+// 记录上一次是谁的回合，用于检测切换并播放语音
+let _lastTurnPlayer = -1;
+
 function updateTurnIndicator() {
     const indicator = document.getElementById('turn-indicator');
+    const myClockEl = document.getElementById('my-turn-clock');
 
     if (gameState.phase === 'baopai') {
-        indicator.textContent = '🎲 包牌阶段 - 决定是否1v3';
+        indicator.textContent = '🎲 包牌阶段';
+        if (myClockEl) myClockEl.classList.add('hidden');
     } else if (gameState.phase === 'calling') {
         if (gameState.spade7Holder === network.position) {
             indicator.textContent = '📢 请喊牌选择队友';
         } else {
-            indicator.textContent = '等待喊牌...';
+            indicator.textContent = '🃏 喊牌中...';
         }
+        if (myClockEl) myClockEl.classList.add('hidden');
     } else if (gameState.phase === 'playing') {
-        const player = network.players[gameState.currentPlayer];
-        if (gameState.currentPlayer === network.position) {
-            indicator.textContent = '轮到你出牌';
+        const isMyTurn = gameState.currentPlayer === network.position;
+        if (isMyTurn) {
+            indicator.textContent = '⏰ 轮到你出牌！';
+            if (myClockEl) myClockEl.classList.remove('hidden');
+            // 刚切换到我的回合时播放语音（每回合仅播一次）
+            if (_lastTurnPlayer !== network.position && window.GameAudio) {
+                GameAudio.playYourTurn();
+            }
         } else {
-            indicator.textContent = `等待 ${player ? player.name : '玩家'} 出牌`;
+            const player = network.players[gameState.currentPlayer];
+            indicator.textContent = `${player ? player.name : '玩家'} 出牌中`;
+            if (myClockEl) myClockEl.classList.add('hidden');
+            // 回合换人，重置语音防抖
+            if (window.GameAudio) GameAudio.resetYourTurn();
         }
+        _lastTurnPlayer = gameState.currentPlayer;
     } else {
         indicator.textContent = '游戏结束';
+        if (myClockEl) myClockEl.classList.add('hidden');
     }
 }
 
@@ -638,6 +664,24 @@ function showResultModal(result) {
 
     content.innerHTML = html;
     modal.classList.remove('hidden');
+
+    // 根据是否房主显示不同按钮
+    const btnPlay = document.getElementById('btn-play-again');
+    const btnReady = document.getElementById('btn-ready-next');
+    const btnNewGame = document.getElementById('btn-new-game');
+    const readyStatus = document.getElementById('ready-status');
+    if (network.isHost) {
+        btnPlay.classList.remove('hidden');
+        btnReady.classList.add('hidden');
+        btnNewGame.classList.remove('hidden');
+        if (readyStatus) readyStatus.classList.add('hidden');
+    } else {
+        btnPlay.classList.add('hidden');
+        btnReady.classList.remove('hidden');
+        btnReady.disabled = true; // 等待房主发起才能点准备
+        btnReady.textContent = '等待房主...';
+        btnNewGame.classList.add('hidden');
+    }
 }
 
 // 保存分数历史
@@ -957,38 +1001,17 @@ function endGame() {
 
 // 显示包牌弹窗
 function showBaopaiModal() {
+    // 如果包牌阶段已结束则不再显示
+    if (gameState.phase !== 'baopai') return;
+
     const modal = document.getElementById('baopai-modal');
     const msg = document.getElementById('baopai-message');
 
-    msg.innerHTML = `
-        <p>你觉得手牌够强吗？可以选择<strong>包牌</strong>（1人 vs 3人）！</p>
-        <p class="countdown">倒计时: <span id="baopai-countdown">${gameState.baopaiCountdown}</span>秒</p>
-    `;
+    msg.innerHTML = `<p>是否决定<strong>包牌</strong>？（1人 vs 3人，赢得/失去3倍分数）</p>`;
     modal.classList.remove('hidden');
-
-    // 更新倒计时显示
-    if (gameState.baopaiTimer) {
-        clearInterval(gameState.baopaiTimer);
-    }
-
-    gameState.baopaiTimer = setInterval(() => {
-        gameState.baopaiCountdown--;
-        const countdownEl = document.getElementById('baopai-countdown');
-        if (countdownEl) {
-            countdownEl.textContent = gameState.baopaiCountdown;
-        }
-
-        if (gameState.baopaiCountdown <= 0) {
-            clearInterval(gameState.baopaiTimer);
-            gameState.baopaiDecisions[network.position] = false;
-            modal.classList.add('hidden');
-            checkBaopaiPhaseComplete();
-        }
-    }, 1000);
 
     // 确认包牌
     document.getElementById('btn-confirm-baopai').onclick = () => {
-        clearInterval(gameState.baopaiTimer);
         modal.classList.add('hidden');
         network.sendGameAction('baopai_decision', { decision: true });
         handleBaopaiDecision(network.position, true);
@@ -996,7 +1019,6 @@ function showBaopaiModal() {
 
     // 不包牌
     document.getElementById('btn-cancel-baopai').onclick = () => {
-        clearInterval(gameState.baopaiTimer);
         modal.classList.add('hidden');
         network.sendGameAction('baopai_decision', { decision: false });
         handleBaopaiDecision(network.position, false);
@@ -1026,54 +1048,36 @@ function handleBaopaiDecision(playerIndex, decision) {
 
 // 检查包牌阶段是否完成
 function checkBaopaiPhaseComplete() {
-    // 检查是否所有人都已决定或倒计时结束
-    let allDecided = true;
+    if (gameState.phase !== 'baopai') return;
+
+    // 机器人立即决定
     for (let i = 0; i < 4; i++) {
-        // 跳过机器人，它们会立即决定
-        if (gameState.robots[i]) {
-            if (gameState.baopaiDecisions[i] === null) {
-                // 机器人立即决定
-                const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
-                gameState.baopaiDecisions[i] = decision;
-                if (decision) {
-                    gameState.baopaiOrder.push(i);
-                    showToast(`${gameState.robots[i].name} 申请包牌！`);
-                }
+        if (gameState.robots[i] && gameState.baopaiDecisions[i] === null) {
+            const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
+            gameState.baopaiDecisions[i] = decision;
+            if (decision) {
+                gameState.baopaiOrder.push(i);
+                showToast(`${gameState.robots[i].name} 申请包牌！`);
             }
-        }
-        if (gameState.baopaiDecisions[i] === null) {
-            allDecided = false;
         }
     }
 
-    // 如果倒计时结束，未决定的视为不包牌
-    if (!allDecided && gameState.baopaiCountdown <= 0) {
-        for (let i = 0; i < 4; i++) {
-            if (gameState.baopaiDecisions[i] === null) {
-                gameState.baopaiDecisions[i] = false;
-            }
-        }
-        allDecided = true;
-    }
+    // 检查是否所有人都已决定
+    const allDecided = gameState.baopaiDecisions.every(d => d !== null);
 
-    // 兜底：如果所有机器人已决定、只剩人类未决定，且倒计时没在运行，重新拉起弹窗
-    if (!allDecided && !gameState.baopaiTimer) {
+    // 兜底：机器人都决定了但自己还没，重新弹窗
+    if (!allDecided) {
         const myDecision = gameState.baopaiDecisions[network.position];
         if (myDecision === null && !gameState.robots[network.position]) {
             const modal = document.getElementById('baopai-modal');
             if (modal && modal.classList.contains('hidden')) {
-                // 重置倒计时并重新弹窗，避免卡死
-                gameState.baopaiCountdown = 10;
                 showBaopaiModal();
             }
         }
+        return;
     }
 
     if (allDecided) {
-        // 清除倒计时
-        if (gameState.baopaiTimer) {
-            clearInterval(gameState.baopaiTimer);
-        }
 
         // 判断是否有人包牌
         const baopaiPlayers = gameState.baopaiDecisions
@@ -1250,7 +1254,6 @@ function initGame(initialState = null, robots = []) {
         gameState.spade7Holder = findSpade7Holder(gameState.hands);
         gameState.phase = 'baopai'; // 先进入包牌阶段
         gameState.currentPlayer = -1; // 包牌阶段没有当前玩家
-        gameState.baopaiCountdown = 10;
 
         // 广播游戏开始
         network.broadcastGameState({
@@ -1265,6 +1268,9 @@ function initGame(initialState = null, robots = []) {
 
     showPage('game');
     updateGameDisplay();
+
+    // 保存会话（断线重连用）
+    if (typeof saveSession === 'function') saveSession();
 
     // 显示包牌弹窗
     showBaopaiModal();
@@ -1285,28 +1291,88 @@ function initGame(initialState = null, robots = []) {
     checkBaopaiPhaseComplete();
 }
 
-// 再来一局
+// 准备状态追踪（房主端）
+let _readyPlayers = new Set();
+
+// 再来一局（房主点击）
 function playAgain() {
-    // 联机模式下只有房主能触发再来一局
     const realPlayers = typeof network.getRealPlayerCount === 'function' ? network.getRealPlayerCount() : 1;
-    if (!network.isHost && realPlayers > 1) {
+    if (!network.isHost) {
         showToast('只有房主可以开始下一局，请等待房主');
         return;
     }
 
-    // 隐藏本局结算弹窗
-    document.getElementById('result-modal').classList.add('hidden');
-
-    // 通知其他玩家隐藏结算弹窗并准备新一轮
-    if (network.isHost) {
-        network.broadcast({ type: 'new_round_started' });
+    // 如果只有1个真人玩家（全机器人），直接开始
+    if (realPlayers <= 1) {
+        _doStartNextRound();
+        return;
     }
 
-    // 重置游戏状态（保留累计分数和玩家信息）
-    gameState.resetForNewRound();
+    // 多人时：通知其他玩家显示"准备"按钮；房主自己等待
+    _readyPlayers = new Set();
+    _readyPlayers.add(network.position); // 房主算已准备
+    network.broadcast({ type: 'start_prepare' });
 
-    // 重新发牌并开始游戏
+    // 更新房主结算弹窗 UI
+    document.getElementById('btn-play-again').classList.add('hidden');
+    const statusEl = document.getElementById('ready-status');
+    statusEl.classList.remove('hidden');
+    _updateReadyStatus();
+}
+
+function _updateReadyStatus() {
+    const statusEl = document.getElementById('ready-status');
+    if (!statusEl) return;
+    const realCount = network.players.filter(p => p && !p.isRobot).length;
+    statusEl.textContent = `等待其他玩家准备... (${_readyPlayers.size}/${realCount})`;
+}
+
+// 其他玩家点"准备"
+function readyForNext() {
+    network.sendGameAction('player_ready', {});
+    document.getElementById('btn-ready-next').disabled = true;
+    document.getElementById('btn-ready-next').textContent = '已准备';
+}
+
+// 新对局（重置所有积分重新开始）
+function startNewGame() {
+    if (!network.isHost) { showToast('只有房主可以开启新对局'); return; }
+    document.getElementById('result-modal').classList.add('hidden');
+    network.broadcast({ type: 'new_game_started' });
+    if (gameState) {
+        gameState.totalScores = [0, 0, 0, 0];
+        gameState.roundCount = 0;
+        gameState.roundHistory = [];
+        gameState.resetForNewRound();
+    }
     startNewRound();
+}
+
+// 实际执行开始下一局
+function _doStartNextRound() {
+    document.getElementById('result-modal').classList.add('hidden');
+    document.getElementById('ready-status').classList.add('hidden');
+    document.getElementById('btn-play-again').classList.remove('hidden');
+    document.getElementById('btn-ready-next').textContent = '准备';
+    document.getElementById('btn-ready-next').disabled = false;
+    _readyPlayers = new Set();
+
+    network.broadcast({ type: 'new_round_started' });
+    if (gameState) gameState.resetForNewRound();
+    startNewRound();
+}
+
+// 离开游戏（让机器人接管）
+function leaveGame() {
+    if (!confirm('确认离开？你的位置将由机器人接管。')) return;
+    network.broadcast({
+        type: 'player_tuoguan',
+        position: network.position,
+        playerName: network.playerName
+    });
+    clearSession();
+    network.leaveRoom();
+    showPage('home');
 }
 
 // 开始新一轮
@@ -1327,7 +1393,6 @@ function startNewRound() {
     gameState.phase = 'baopai';
     gameState.baopaiDecisions = [null, null, null, null];
     gameState.baopaiOrder = [];
-    gameState.baopaiCountdown = 10;
 
     // 更新界面
     updateGameDisplay();
@@ -1549,8 +1614,41 @@ if (typeof window !== 'undefined') {
     window.robotCallCard = robotCallCard;
     window.showHistoryModal = showHistoryModal;
     window.playAgain = playAgain;
+    window.readyForNext = readyForNext;
+    window.startNewGame = startNewGame;
+    window._doStartNextRound = _doStartNextRound;
+    window._readyPlayers = _readyPlayers;
+    window._updateReadyStatus = _updateReadyStatus;
+    window.leaveGame = leaveGame;
     window.showFinalGameResult = showFinalGameResult;
     window.showFinalResult = showFinalResult;
     window.startNewRound = startNewRound;
     window.updateCalledCardIndicators = updateCalledCardIndicators;
 }
+
+// ==================== 会话持久化 ====================
+
+function saveSession() {
+    try {
+        localStorage.setItem('banzi_session', JSON.stringify({
+            roomId: network.roomId,
+            playerName: network.playerName,
+            position: network.position,
+            isHost: network.isHost,
+            playerId: network.playerId
+        }));
+    } catch (e) {}
+}
+
+function clearSession() {
+    localStorage.removeItem('banzi_session');
+}
+
+function loadSession() {
+    try { return JSON.parse(localStorage.getItem('banzi_session')); }
+    catch { return null; }
+}
+
+window.saveSession = saveSession;
+window.clearSession = clearSession;
+window.loadSession = loadSession;

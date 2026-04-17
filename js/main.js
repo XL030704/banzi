@@ -26,9 +26,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 设置网络回调
     setupNetworkCallbacks();
 
-    // 页面加载完成后显示提示
+    // 检查是否有上次未结束的会话（刷新恢复 / 断线重连）
+    tryRestoreSession();
+
     console.log('贵州板子游戏已加载完成');
 });
+
+// 尝试恢复上次会话
+async function tryRestoreSession() {
+    const session = typeof loadSession === 'function' ? loadSession() : null;
+    if (!session || !session.roomId) return;
+
+    const confirm = window.confirm(
+        `检测到上次在房间 ${session.roomId} 的游戏记录（${session.playerName}），是否尝试重新连接？`
+    );
+    if (!confirm) {
+        if (typeof clearSession === 'function') clearSession();
+        return;
+    }
+
+    showToast('正在尝试重新连接...');
+    try {
+        await loadPusher();
+        // 用原有名字加入房间
+        const result = await network.joinRoom(session.roomId, session.playerName);
+        network.broadcast({
+            type: 'reconnect_request',
+            oldPlayerId: session.playerId,
+            playerName: session.playerName
+        });
+        showPage('room');
+        updateRoomDisplay();
+        showToast(`已重新加入房间 ${session.roomId}`);
+    } catch (err) {
+        showToast('重连失败：' + err.message);
+        if (typeof clearSession === 'function') clearSession();
+    }
+}
 
 // 绑定首页事件
 function bindHomeEvents() {
@@ -241,6 +275,7 @@ function bindRoomEvents() {
     // 离开房间
     btnLeave.addEventListener('click', () => {
         if (confirm('确定要离开房间吗？')) {
+            if (typeof clearSession === 'function') clearSession();
             network.leaveRoom();
             roomRobots = [];
             showPage('home');
@@ -297,23 +332,35 @@ function bindGameEvents() {
         document.getElementById('rules-modal').classList.remove('hidden');
     });
 
-    // 再来一局
+    // 再来一局（房主）
     btnPlayAgain.addEventListener('click', () => {
-        if (typeof playAgain === 'function') {
-            playAgain();
-        }
+        if (typeof playAgain === 'function') playAgain();
+    });
+
+    // 准备（非房主）
+    document.getElementById('btn-ready-next').addEventListener('click', () => {
+        if (typeof readyForNext === 'function') readyForNext();
+    });
+
+    // 新对局（重置积分）
+    document.getElementById('btn-new-game').addEventListener('click', () => {
+        if (typeof startNewGame === 'function') startNewGame();
     });
 
     // 结束游戏
     btnEndGame.addEventListener('click', () => {
-        if (typeof showFinalGameResult === 'function') {
-            showFinalGameResult();
-        }
+        if (typeof showFinalGameResult === 'function') showFinalGameResult();
+    });
+
+    // 离开游戏（托管）
+    document.getElementById('btn-leave-game').addEventListener('click', () => {
+        if (typeof leaveGame === 'function') leaveGame();
     });
 
     // 最终结算 - 返回大厅
     btnBackLobbyFinal.addEventListener('click', () => {
         document.getElementById('final-result-modal').classList.add('hidden');
+        if (typeof clearSession === 'function') clearSession();
         network.leaveRoom();
         showPage('home');
     });
@@ -421,12 +468,80 @@ function handleNetworkMessage(data) {
             // 非房主：隐藏结算弹窗，准备接收新一轮的 sync_state
             if (!network.isHost) {
                 document.getElementById('result-modal').classList.add('hidden');
+                document.getElementById('btn-ready-next').textContent = '准备';
+                document.getElementById('btn-ready-next').disabled = false;
+                document.getElementById('btn-ready-next').classList.add('hidden');
+                document.getElementById('btn-play-again').classList.remove('hidden');
                 const finalModal = document.getElementById('final-result-modal');
                 if (finalModal) finalModal.classList.add('hidden');
+                if (gameState) gameState.resetForNewRound();
+                showToast('房主开始下一局...');
+            }
+            break;
+
+        case 'new_game_started':
+            // 非房主：收到新对局通知
+            if (!network.isHost) {
+                document.getElementById('result-modal').classList.add('hidden');
+                document.getElementById('btn-ready-next').classList.add('hidden');
+                document.getElementById('btn-play-again').classList.remove('hidden');
                 if (gameState) {
+                    gameState.totalScores = [0, 0, 0, 0];
+                    gameState.roundCount = 0;
+                    gameState.roundHistory = [];
                     gameState.resetForNewRound();
                 }
-                showToast('房主开始下一局...');
+                showToast('房主开始新对局...');
+            }
+            break;
+
+        case 'start_prepare':
+            // 非房主：显示"准备"按钮，隐藏"再来一局"
+            if (!network.isHost) {
+                document.getElementById('btn-play-again').classList.add('hidden');
+                document.getElementById('btn-ready-next').classList.remove('hidden');
+                document.getElementById('btn-ready-next').disabled = false;
+                document.getElementById('btn-ready-next').textContent = '准备';
+                showToast('房主发起下一局，请点击"准备"');
+            }
+            break;
+
+        case 'player_ready':
+            // 房主：收集准备信号，所有人准备好后开始
+            if (network.isHost && data.from !== undefined) {
+                window._readyPlayers.add(data.from);
+                const realCount = network.players.filter(p => p && !p.isRobot).length;
+                if (typeof window._updateReadyStatus === 'function') window._updateReadyStatus();
+                if (window._readyPlayers.size >= realCount) {
+                    if (typeof window._doStartNextRound === 'function') window._doStartNextRound();
+                }
+            }
+            break;
+
+        case 'player_tuoguan':
+            // 有玩家离开，在他的位置创建机器人托管
+            {
+                const pos = data.position;
+                if (pos !== undefined && pos >= 0 && pos < 4) {
+                    // 创建托管机器人
+                    const r = new RobotPlayer(pos, 'normal');
+                    r.isTuoguan = true;
+                    r.name = (data.playerName || `玩家${pos+1}`) + '(托管)';
+                    network.players[pos] = { id: 'robot_' + pos, name: r.name, position: pos, isRobot: true, isTuoguan: true };
+                    if (gameState) {
+                        gameState.robots[pos] = r;
+                    }
+                    showToast(`${data.playerName || '玩家'} 已离开，机器人接管`);
+                    updateRoomDisplay();
+                    if (gameState) updateGameDisplay();
+                }
+            }
+            break;
+
+        case 'reconnect_request':
+            // 房主收到重连请求：把断线玩家恢复到原位置（按名字匹配）
+            if (network.isHost && data.playerName) {
+                showToast(`${data.playerName} 重新连接`);
             }
             break;
 
@@ -505,6 +620,18 @@ function handleGameAction(action, payload, from) {
         case 'baopai_decision':
             // 同步其他玩家的包牌决定（联机关键路径）
             handleBaopaiDecision(from, payload.decision);
+            break;
+
+        case 'player_ready':
+            // 广播给房主（房主通过 onMessageCallback 收到）
+            if (network.isHost) {
+                if (window._readyPlayers) window._readyPlayers.add(from);
+                const realCount = network.players.filter(p => p && !p.isRobot).length;
+                if (typeof window._updateReadyStatus === 'function') window._updateReadyStatus();
+                if (window._readyPlayers && window._readyPlayers.size >= realCount) {
+                    if (typeof window._doStartNextRound === 'function') window._doStartNextRound();
+                }
+            }
             break;
     }
 }

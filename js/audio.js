@@ -48,6 +48,7 @@ const AUDIO_FILES = {
     bigger:     '32_大你_349821.mp3',
     oneLeft:    '我就剩一张牌了_364723.mp3',
     twoLeft:    '我就剩两张牌了_315413.mp3',
+    yourTurn:   '到你出牌了.mp3',
     shuffle:    'card_shuffle.mp3'
 };
 
@@ -148,6 +149,15 @@ function playShuffle() {
     _play(AUDIO_FILES.shuffle);
 }
 
+// "到你出牌了" —— 防抖避免同一轮重复播放
+let _yourTurnPlayed = false;
+function playYourTurn() {
+    if (_yourTurnPlayed) return;
+    _yourTurnPlayed = true;
+    _play(AUDIO_FILES.yourTurn);
+}
+function resetYourTurn() { _yourTurnPlayed = false; }
+
 function setMuted(m)   { _muted = !!m; }
 function setVolume(v)  { _volume = Math.max(0, Math.min(1, v)); }
 
@@ -157,6 +167,8 @@ window.GameAudio = {
     playPass,
     playRemaining,
     playShuffle,
+    playYourTurn,
+    resetYourTurn,
     setMuted,
     setVolume
 };

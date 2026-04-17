@@ -99,31 +99,49 @@
                     <!-- 其他玩家区域 -->
                     <div class="player-top" data-player="2">
                         <div class="player-info">
-                            <div class="player-avatar">?</div>
+                            <div class="player-header">
+                                <div class="player-avatar">?</div>
+                                <div class="player-badges">
+                                    <div class="spade7-indicator hidden">♠7</div>
+                                    <div class="called-card-indicator hidden"></div>
+                                    <div class="turn-clock hidden">⏰</div>
+                                    <div class="tuoguan-badge hidden">托管</div>
+                                </div>
+                            </div>
                             <div class="player-name">玩家3</div>
                             <div class="player-cards">13张</div>
-                            <div class="spade7-indicator hidden">♠7</div>
-                            <div class="called-card-indicator hidden"></div>
                         </div>
                     </div>
 
                     <div class="player-left" data-player="1">
                         <div class="player-info">
-                            <div class="player-avatar">?</div>
+                            <div class="player-header">
+                                <div class="player-avatar">?</div>
+                                <div class="player-badges">
+                                    <div class="spade7-indicator hidden">♠7</div>
+                                    <div class="called-card-indicator hidden"></div>
+                                    <div class="turn-clock hidden">⏰</div>
+                                    <div class="tuoguan-badge hidden">托管</div>
+                                </div>
+                            </div>
                             <div class="player-name">玩家2</div>
                             <div class="player-cards">13张</div>
-                            <div class="spade7-indicator hidden">♠7</div>
-                            <div class="called-card-indicator hidden"></div>
                         </div>
                     </div>
 
                     <div class="player-right" data-player="3">
                         <div class="player-info">
-                            <div class="player-avatar">?</div>
+                            <div class="player-header">
+                                <div class="player-avatar">?</div>
+                                <div class="player-badges">
+                                    <div class="spade7-indicator hidden">♠7</div>
+                                    <div class="called-card-indicator hidden"></div>
+                                    <div class="turn-clock hidden">⏰</div>
+                                    <div class="tuoguan-badge hidden">托管</div>
+                                </div>
+                            </div>
                             <div class="player-name">玩家4</div>
                             <div class="player-cards">13张</div>
-                            <div class="spade7-indicator hidden">♠7</div>
-                            <div class="called-card-indicator hidden"></div>
                         </div>
                     </div>
 
@@ -138,10 +156,12 @@
                 <!-- 自己的手牌区 -->
                 <div class="my-hand-area">
                     <div class="my-info">
+                        <span id="my-turn-clock" class="my-turn-clock hidden">⏰ </span>
                         <span id="my-name">我</span>
                         <span id="spade7-badge" class="spade7-badge hidden">♠7</span>
                         <span id="called-card-badge" class="called-card-badge hidden"></span>
                         <span id="my-card-count">13张</span>
+                        <button id="btn-leave-game" class="btn btn-small btn-danger-sm">离开</button>
                     </div>
                     <div id="my-hand" class="my-hand"></div>
                     <div class="action-buttons">
@@ -202,8 +222,11 @@
             <div class="modal-content large">
                 <h3>🏆 本局结束</h3>
                 <div id="result-content"></div>
+                <div id="ready-status" class="ready-status hidden"></div>
                 <div class="modal-buttons">
                     <button id="btn-play-again" class="btn btn-primary">再来一局</button>
+                    <button id="btn-ready-next" class="btn btn-primary hidden">准备</button>
+                    <button id="btn-new-game" class="btn btn-info hidden">新对局</button>
                     <button id="btn-end-game" class="btn btn-secondary">结束游戏</button>
                 </div>
             </div>

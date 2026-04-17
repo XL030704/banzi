@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l \"D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/js/\"*.js \"D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/index.html\")",
+      "Bash(cmd //c \"mkdir \\\\\"D:\\\\studyfiles\\\\Agent\\\\vibe coding\\\\banzi\\\\.claude\\\\worktrees\\\\serene-leavitt\\\\assets\\\\\" 2>nul & xcopy /Y /Q \\\\\"D:\\\\studyfiles\\\\Agent\\\\vibe coding\\\\banzi\\\\assets\\\\*\\\\\" \\\\\"D:\\\\studyfiles\\\\Agent\\\\vibe coding\\\\banzi\\\\.claude\\\\worktrees\\\\serene-leavitt\\\\assets\\\\\\\\\"\")",
+      "Bash(powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets' | Out-Null; Copy-Item -Force 'D:/studyfiles/Agent/vibe coding/banzi/assets/*' 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets/'; \\(Get-ChildItem 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets/'\\).Count\")",
+      "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command \"New-Item -ItemType Directory -Force -Path 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets' | Out-Null; Copy-Item -Force 'D:/studyfiles/Agent/vibe coding/banzi/assets/*' 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets/'; \\(Get-ChildItem 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets/'\\).Count\")",
+      "Bash(\"D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe\" --version)",
+      "Bash(\"D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe\" add:*)",
+      "Bash('D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe' commit -m '接入真人语音音效 + 修复出牌区遮挡上方信息:*)",
+      "Read(//d/studyfiles/Agent/vibe coding/banzi/**)",
+      "Bash(\"D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe\" checkout:*)",
+      "Bash(\"D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe\" cherry-pick:*)",
+      "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command \"Remove-Item -Recurse -Force 'D:/studyfiles/Agent/vibe coding/banzi/assets'\")",
+      "Bash('D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe' commit -m '音效随机种子随消息广播, 4 个客户端听到同一段语音:*)",
+      "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command \"Copy-Item 'D:/studyfiles/Agent/vibe coding/banzi/assets/到你出牌了.mp3' 'D:/studyfiles/Agent/vibe coding/banzi/.claude/worktrees/serene-leavitt/assets/到你出牌了.mp3'\")",
+      "Bash(\"D:\\\\Downloads\\\\software\\\\Git\\\\cmd\\\\git.exe\" status:*)"
+    ]
+  }
+}
