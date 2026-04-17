@@ -1007,7 +1007,7 @@ function showBaopaiModal() {
     const modal = document.getElementById('baopai-modal');
     const msg = document.getElementById('baopai-message');
 
-    msg.innerHTML = `<p>是否决定<strong>包牌</strong>？（1人 vs 3人，赢得/失去3倍分数）</p>`;
+    msg.innerHTML = `<p>是否决定<strong>包牌</strong>？</p>`;
     modal.classList.remove('hidden');
 
     // 确认包牌

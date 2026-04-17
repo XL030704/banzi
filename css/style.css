@@ -384,6 +384,7 @@ html, body {
 /* 其他玩家 */
 .player-top, .player-left, .player-right {
     position: absolute;
+    overflow: visible;
 }
 
 .player-top {
@@ -419,6 +420,8 @@ html, body {
     flex-direction: row;
     align-items: center;
     gap: 4px;
+    /* 允许徽章溢出不被裁切（对旋转容器尤其重要）*/
+    overflow: visible;
 }
 
 .player-badges {
@@ -438,6 +441,7 @@ html, body {
     justify-content: center;
     font-size: 18px;
     flex-shrink: 0;
+    position: relative; /* 供时钟绝对定位 */
 }
 
 .player-info.active .player-avatar {

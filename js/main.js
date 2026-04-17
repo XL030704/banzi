@@ -55,9 +55,10 @@ async function tryRestoreSession() {
             oldPlayerId: session.playerId,
             playerName: session.playerName
         });
+        // 留在房间页等待 host 发 sync_state（sync_state 收到后自动跳到游戏页）
         showPage('room');
         updateRoomDisplay();
-        showToast(`已重新加入房间 ${session.roomId}`);
+        showToast(`重连成功，等待同步游戏状态...`);
     } catch (err) {
         showToast('重连失败：' + err.message);
         if (typeof clearSession === 'function') clearSession();
@@ -539,9 +540,42 @@ function handleNetworkMessage(data) {
             break;
 
         case 'reconnect_request':
-            // 房主收到重连请求：把断线玩家恢复到原位置（按名字匹配）
+            // 房主收到重连请求：按名字匹配原位置，更新 network.players，并重发游戏状态
             if (network.isHost && data.playerName) {
                 showToast(`${data.playerName} 重新连接`);
+                // 找到该玩家原来的位置（按名字匹配），用新 senderId 更新 id
+                for (let i = 0; i < 4; i++) {
+                    if (network.players[i] && network.players[i].name === data.playerName) {
+                        network.players[i].id = data.senderId || network.players[i].id;
+                        break;
+                    }
+                }
+                // 如果游戏正在进行，重新广播当前状态让重连玩家同步
+                if (gameState && gameState.phase && gameState.phase !== 'ended') {
+                    setTimeout(() => {
+                        network.broadcastGameState({
+                            deck: [],
+                            hands: gameState.hands,
+                            spade7Holder: gameState.spade7Holder,
+                            phase: gameState.phase,
+                            currentPlayer: gameState.currentPlayer,
+                            teams: gameState.teams,
+                            calledCard: gameState.calledCard,
+                            baopaiPlayer: gameState.baopaiPlayer,
+                            multiplier: gameState.multiplier,
+                            multiplierReasons: gameState.multiplierReasons,
+                            currentRoundCards: gameState.currentRoundCards,
+                            playedCards: gameState.playedCards,
+                            finishOrder: gameState.finishOrder,
+                            roundPassedPlayers: gameState.roundPassedPlayers,
+                            totalScores: gameState.totalScores,
+                            roundCount: gameState.roundCount,
+                            baopaiDecisions: gameState.baopaiDecisions,
+                            baopaiOrder: gameState.baopaiOrder,
+                            robots: gameState.robots.map((r, i) => r ? { position: i, difficulty: r.difficulty } : null)
+                        });
+                    }, 800);
+                }
             }
             break;
 
