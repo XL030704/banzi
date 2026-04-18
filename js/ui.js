@@ -211,6 +211,11 @@ function updateMyHand() {
     // 复制并反转手牌（从小到大排序，小的在左边）
     const myHand = [...gameState.hands[network.position]].reverse();
 
+    // 裁剪 selectedCards：只保留仍在手牌里的选中项，避免 DOM 重建后残留"幽灵选中"
+    selectedCards = selectedCards.filter(sc =>
+        myHand.some(c => c.suit === sc.suit && c.rank === sc.rank)
+    );
+
     for (const card of myHand) {
         const cardEl = document.createElement('div');
         cardEl.className = `card ${card.suit}`;
@@ -222,6 +227,11 @@ function updateMyHand() {
             <div class="card-rank">${card.rank}</div>
             <div class="card-suit">${SUIT_SYMBOLS[card.suit]}</div>
         `;
+
+        // 同步回"已选中"视觉，避免 DOM 重建后 CSS 丢失但数组仍然保留
+        if (selectedCards.some(sc => sc.suit === card.suit && sc.rank === card.rank)) {
+            cardEl.classList.add('selected');
+        }
 
         cardEl.addEventListener('click', () => toggleCardSelection(card, cardEl));
         handEl.appendChild(cardEl);
