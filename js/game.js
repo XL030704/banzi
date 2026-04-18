@@ -57,7 +57,6 @@ class GameState {
         this.roundPassedPlayers = []; // 当前回合已pass的玩家
         this.robots = [];            // 机器人列表 [null, robot2, null, robot3] 这样的格式
         this.baopaiCountdown = 10;   // 包牌倒计时（秒）
-        this.baopaiTimer = null;     // 包牌倒计时定时器
 
         // 多局累计数据
         this.totalScores = [0, 0, 0, 0]; // 累计分数
@@ -88,7 +87,6 @@ class GameState {
         this.currentRoundCards = [];
         this.roundPassedPlayers = [];
         this.baopaiCountdown = 10;
-        this.baopaiTimer = null;
     }
 }
 
@@ -413,16 +411,20 @@ function calculateFinalResult(gameState) {
     const team1Finish = finishOrder.filter(p => teams[p] === 1).sort((a, b) => finishOrder.indexOf(a) - finishOrder.indexOf(b));
 
     if (team0Finish.length === 2 && team1Finish.length === 2) {
-        if (finishOrder.indexOf(team0Finish[0]) < finishOrder.indexOf(team1Finish[0]) &&
-            finishOrder.indexOf(team0Finish[1]) < finishOrder.indexOf(team1Finish[0])) {
-            result.isDoubleWin = true;
-            result.multiplier *= 2;
-            result.multiplierReasons.push('双出×2');
-        } else if (finishOrder.indexOf(team1Finish[0]) < finishOrder.indexOf(team0Finish[0]) &&
-                   finishOrder.indexOf(team1Finish[1]) < finishOrder.indexOf(team0Finish[0])) {
-            result.isDoubleWin = true;
-            result.multiplier *= 2;
-            result.multiplierReasons.push('双出×2');
+        const t0a = finishOrder.indexOf(team0Finish[0]);
+        const t0b = finishOrder.indexOf(team0Finish[1]);
+        const t1a = finishOrder.indexOf(team1Finish[0]);
+        const t1b = finishOrder.indexOf(team1Finish[1]);
+        if (t0a !== -1 && t0b !== -1 && t1a !== -1 && t1b !== -1) {
+            if (t0a < t1a && t0b < t1a) {
+                result.isDoubleWin = true;
+                result.multiplier *= 2;
+                result.multiplierReasons.push('双出×2');
+            } else if (t1a < t0a && t1b < t0a) {
+                result.isDoubleWin = true;
+                result.multiplier *= 2;
+                result.multiplierReasons.push('双出×2');
+            }
         }
     }
 

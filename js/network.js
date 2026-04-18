@@ -22,6 +22,9 @@ class NetworkManager {
         this.onPlayerLeaveCallback = null;
         this.onConnectionReady = null;
         this.subscribed = false;
+        this._joinResolve = null;
+        this._joinReject = null;
+        this._joinTimeout = null;
     }
 
     // ============================================
@@ -175,6 +178,9 @@ class NetworkManager {
         await this.subscribeToRoom(this.roomId);
 
         return new Promise((resolve, reject) => {
+            this._joinResolve = resolve;
+            this._joinReject = reject;
+
             // 发送加入请求
             this.publish({
                 type: 'join_request',
@@ -182,32 +188,31 @@ class NetworkManager {
                 playerName: playerName
             });
 
-            // 设置一次性监听器等待响应
-            const checkResponse = setInterval(() => {
-                // 如果 position 已经被设置（通过 room_info 消息），则完成
-                if (this.position !== -1) {
-                    clearInterval(checkResponse);
-                    resolve({
-                        roomId: this.roomId,
-                        players: this.players,
-                        yourPosition: this.position
-                    });
-                }
-                // 如果被拒绝
-                if (this.position === -2) {
-                    clearInterval(checkResponse);
-                    reject(new Error(data.reason || '房间已满，加入被拒绝'));
-                }
-            }, 100);
-
             // 超时处理
-            setTimeout(() => {
-                clearInterval(checkResponse);
-                if (this.position === -1) {
-                    reject(new Error('连接超时，请检查房间号是否正确'));
+            this._joinTimeout = setTimeout(() => {
+                if (this._joinReject) {
+                    const rej = this._joinReject;
+                    this._joinResolve = null;
+                    this._joinReject = null;
+                    this._joinTimeout = null;
+                    rej(new Error('连接超时，请检查房间号是否正确'));
                 }
             }, 10000);
         });
+    }
+
+    // 完成加入房间的 Promise
+    _finishJoin(resolved, payloadOrError) {
+        if (this._joinTimeout) {
+            clearTimeout(this._joinTimeout);
+            this._joinTimeout = null;
+        }
+        const resolve = this._joinResolve;
+        const reject = this._joinReject;
+        this._joinResolve = null;
+        this._joinReject = null;
+        if (resolved && resolve) resolve(payloadOrError);
+        else if (!resolved && reject) reject(payloadOrError);
     }
 
     // 处理收到的消息
@@ -228,6 +233,11 @@ class NetworkManager {
                 if (!this.isHost && data.targetPlayerId === this.playerId) {
                     this.position = data.yourPosition;
                     this.players = data.players;
+                    this._finishJoin(true, {
+                        roomId: this.roomId,
+                        players: this.players,
+                        yourPosition: this.position
+                    });
                     if (this.onMessageCallback) {
                         this.onMessageCallback(data);
                     }
@@ -249,7 +259,7 @@ class NetworkManager {
 
             case 'join_rejected':
                 if (!this.isHost && data.targetPlayerId === this.playerId) {
-                    this.position = -2; // 标记为被拒绝
+                    this._finishJoin(false, new Error(data.reason || '房间已满，加入被拒绝'));
                 }
                 break;
 

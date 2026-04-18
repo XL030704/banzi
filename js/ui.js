@@ -8,75 +8,6 @@ let selectedCards = [];
 let myPosition = -1;
 let isHost = false;
 
-// 出牌音效（基于 Web Audio API，无需外部文件）
-let _audioCtx = null;
-function playCardSound() {
-    try {
-        if (!_audioCtx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            _audioCtx = new AudioCtx();
-        }
-        const ctx = _audioCtx;
-        const now = ctx.currentTime;
-
-        // 模拟欢乐斗地主出牌声："嗖"一下滑出 + 轻微"啪"的落点
-        // 核心：带通滤波的白噪声，频率从高到低快速扫过 => 类似纸牌划过的摩擦声
-        const duration = 0.11;
-        const sr = ctx.sampleRate;
-        const bufSize = Math.floor(sr * duration);
-        const noiseBuf = ctx.createBuffer(1, bufSize, sr);
-        const data = noiseBuf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        const noise = ctx.createBufferSource();
-        noise.buffer = noiseBuf;
-
-        // 带通滤波，频率从 4500Hz 快速扫到 900Hz，形成 "whoosh" 效果
-        const bp = ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.Q.value = 1.2;
-        bp.frequency.setValueAtTime(4500, now);
-        bp.frequency.exponentialRampToValueAtTime(900, now + duration);
-
-        // 高通进一步去掉低频闷响
-        const hp = ctx.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 600;
-
-        // 包络：快速起音 + 平滑衰减
-        const noiseGain = ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.0001, now);
-        noiseGain.gain.linearRampToValueAtTime(0.25, now + 0.008);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-        noise.connect(bp);
-        bp.connect(hp);
-        hp.connect(noiseGain);
-        noiseGain.connect(ctx.destination);
-        noise.start(now);
-        noise.stop(now + duration);
-
-        // 尾部轻微"嗒"一下落点（低频短脉冲）
-        const clickDelay = 0.055;
-        const clickDur = 0.03;
-        const click = ctx.createOscillator();
-        const clickGain = ctx.createGain();
-        click.type = 'sine';
-        click.frequency.setValueAtTime(220, now + clickDelay);
-        click.frequency.exponentialRampToValueAtTime(90, now + clickDelay + clickDur);
-        clickGain.gain.setValueAtTime(0.0001, now + clickDelay);
-        clickGain.gain.linearRampToValueAtTime(0.12, now + clickDelay + 0.003);
-        clickGain.gain.exponentialRampToValueAtTime(0.001, now + clickDelay + clickDur);
-        click.connect(clickGain).connect(ctx.destination);
-        click.start(now + clickDelay);
-        click.stop(now + clickDelay + clickDur);
-    } catch (e) {
-        // 忽略音效错误，不影响游戏
-    }
-}
-
 // DOM 元素
 const pages = {
     home: document.getElementById('home-page'),
@@ -412,38 +343,21 @@ function updateActionButtons() {
     const isMyTurn = gameState.currentPlayer === network.position;
     const hasSelected = selectedCards.length > 0;
 
-    console.log('updateActionButtons:', { isMyTurn, hasSelected, currentPlayer: gameState.currentPlayer, myPosition: network.position, selectedCardsCount: selectedCards.length });
-
-    // 检查是否可以出牌
     let canPlay = false;
     if (isMyTurn && hasSelected) {
-        // 检查选中的牌是否构成有效牌型
         const currentHandType = analyzeHand(selectedCards);
-        console.log('analyzeHand result:', currentHandType, 'selectedCards:', selectedCards);
-
-        if (!currentHandType) {
-            canPlay = false;
-            console.log('canPlay = false: currentHandType is null');
-        } else {
+        if (currentHandType) {
             const lastHand = gameState.currentRoundCards.length > 0
                 ? analyzeHand(gameState.currentRoundCards[gameState.currentRoundCards.length - 1].cards)
                 : null;
-
-            console.log('lastHand:', lastHand, 'currentRoundCards:', gameState.currentRoundCards);
-
             if (!lastHand) {
-                // 新的一轮开始，可以出任意有效牌型（第一轮也不强制黑桃7）
                 canPlay = true;
-                console.log('canPlay = true: new round');
             } else {
-                // 需要压牌
                 canPlay = window.compareHands(lastHand, currentHandType);
-                console.log('canPlay from compareHands:', canPlay);
             }
         }
     }
 
-    console.log('Final canPlay:', canPlay);
     btnPlay.disabled = !canPlay;
 
     // 是否可以不要
@@ -767,8 +681,6 @@ function handlePlayCards(playerIndex, cards, audioSeed) {
     const _ht = analyzeHand(cards);
     if (window.GameAudio) {
         GameAudio.playPlay(_ht, _isPressing, audioSeed);
-    } else {
-        playCardSound();
     }
 
     // 从手牌中移除
@@ -857,7 +769,8 @@ function handlePlayCards(playerIndex, cards, audioSeed) {
 
     // 轮到下家（逆时针），跳过已出完牌的玩家
     let nextPlayer = (playerIndex + 3) % 4;
-    while (gameState.hands[nextPlayer].length === 0) {
+    let _safety = 0;
+    while (gameState.hands[nextPlayer].length === 0 && _safety++ < 4) {
         nextPlayer = (nextPlayer + 3) % 4;
     }
     gameState.currentPlayer = nextPlayer;
@@ -892,7 +805,8 @@ function handlePass(playerIndex, audioSeed) {
 
     // 找到下一个还有牌的玩家（逆时针），跳过已出完牌的玩家
     let nextPlayer = (playerIndex + 3) % 4;
-    while (gameState.hands[nextPlayer].length === 0) {
+    let _safetyPass = 0;
+    while (gameState.hands[nextPlayer].length === 0 && _safetyPass++ < 4) {
         nextPlayer = (nextPlayer + 3) % 4;
     }
 
@@ -956,7 +870,8 @@ function endRound(winnerIndex) {
     if (gameState.hands[winnerIndex].length === 0) {
         nextPlayer = (winnerIndex + 3) % 4;
         // 跳过已出完牌的玩家
-        while (gameState.hands[nextPlayer].length === 0) {
+        let _safetyER = 0;
+        while (gameState.hands[nextPlayer].length === 0 && _safetyER++ < 4) {
             nextPlayer = (nextPlayer + 3) % 4;
         }
     }
@@ -1035,9 +950,6 @@ function handleBaopaiDecision(playerIndex, decision) {
         showToast(`${network.players[playerIndex]?.name || '玩家'} 申请包牌！`);
     }
 
-    console.log(`Player ${playerIndex} decided: ${decision}`);
-    console.log('Current decisions:', gameState.baopaiDecisions);
-
     // 检查是否所有玩家都已决定
     checkBaopaiPhaseComplete();
 }
@@ -1046,14 +958,19 @@ function handleBaopaiDecision(playerIndex, decision) {
 function checkBaopaiPhaseComplete() {
     if (gameState.phase !== 'baopai') return;
 
-    // 机器人立即决定
-    for (let i = 0; i < 4; i++) {
-        if (gameState.robots[i] && gameState.baopaiDecisions[i] === null) {
-            const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
-            gameState.baopaiDecisions[i] = decision;
-            if (decision) {
-                gameState.baopaiOrder.push(i);
-                showToast(`${gameState.robots[i].name} 申请包牌！`);
+    // 机器人决策仅由房主驱动并广播，避免各客户端 Math.random 产生不同结果导致状态分裂
+    if (network.isHost) {
+        for (let i = 0; i < 4; i++) {
+            if (gameState.robots[i] && gameState.baopaiDecisions[i] === null) {
+                const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
+                network.broadcast({
+                    type: 'game_action',
+                    action: 'baopai_decision',
+                    payload: { decision },
+                    from: i,
+                    timestamp: Date.now()
+                });
+                handleBaopaiDecision(i, decision);
             }
         }
     }
@@ -1074,6 +991,8 @@ function checkBaopaiPhaseComplete() {
     }
 
     if (allDecided) {
+        // 避免递归 / 重复进入（每次调用 handleBaopaiDecision 都会再次 check）
+        if (gameState.phase !== 'baopai') return;
 
         // 判断是否有人包牌
         const baopaiPlayers = gameState.baopaiDecisions
@@ -1155,8 +1074,9 @@ function checkBaopaiPhaseComplete() {
 
 // ==================== 机器人AI操作 ====================
 
-// 机器人喊牌
+// 机器人喊牌（仅房主驱动 AI，非房主通过网络消息同步）
 function robotCallCard(robotIndex) {
+    if (!network.isHost) return;
     const robot = gameState.robots[robotIndex];
     if (!robot) return;
 
@@ -1186,8 +1106,9 @@ function robotCallCard(robotIndex) {
     network.sendGameAction('call_card', { suit: selectedSuit, rank });
 }
 
-// 机器人出牌
+// 机器人出牌（仅房主驱动 AI，非房主通过网络消息同步）
 function robotPlay(robotIndex) {
+    if (!network.isHost) return;
     const robot = gameState.robots[robotIndex];
     if (!robot) return;
 
@@ -1275,19 +1196,7 @@ function initGame(initialState = null, robots = []) {
     // 显示包牌弹窗
     showBaopaiModal();
 
-    // 让机器人立即做出包牌决定
-    for (let i = 0; i < 4; i++) {
-        if (gameState.robots[i] && gameState.baopaiDecisions[i] === null) {
-            const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
-            gameState.baopaiDecisions[i] = decision;
-            if (decision) {
-                gameState.baopaiOrder.push(i);
-                showToast(`${gameState.robots[i].name} 申请包牌！`);
-            }
-        }
-    }
-
-    // 检查是否只有人类玩家未决定，如果是，立即检查阶段完成
+    // 机器人包牌决策由 checkBaopaiPhaseComplete 统一处理（仅房主广播）
     checkBaopaiPhaseComplete();
 }
 
@@ -1413,22 +1322,8 @@ function startNewRound() {
         setTimeout(() => showBaopaiModal(), 500);
     }
 
-    // 机器人立即决定
-    for (let i = 0; i < 4; i++) {
-        if (gameState.robots[i]) {
-            setTimeout(() => {
-                const decision = gameState.robots[i].decideBaopai(gameState.hands[i]);
-                gameState.baopaiDecisions[i] = decision;
-                if (decision) {
-                    gameState.baopaiOrder.push(i);
-                    showToast(`${gameState.robots[i].name} 申请包牌！`);
-                }
-            }, 1000 + i * 200);
-        }
-    }
-
-    // 检查是否只有人类玩家未决定，如果是，立即检查阶段完成
-    setTimeout(() => checkBaopaiPhaseComplete(), 2000);
+    // 机器人决策由 checkBaopaiPhaseComplete 统一处理（仅房主广播），和 initGame 保持一致
+    setTimeout(() => checkBaopaiPhaseComplete(), 500);
 
     // 房主广播新一轮状态给其他玩家
     if (network.isHost) {
@@ -1464,7 +1359,7 @@ function showFinalGameResult() {
 
 // 处理包牌请求（占位，避免未定义错误）
 function handleBaopaiRequest(fromPlayer) {
-    console.log('收到包牌请求 from:', fromPlayer);
+    // 当前实现中包牌统一走 baopai_decision / baopai_approved，这里保留占位
 }
 
 // 显示最终结算弹窗

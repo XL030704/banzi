@@ -290,7 +290,6 @@ function bindRoomEvents() {
             // 只有当本玩家还没做决定时才处理
             if (window.gameState && gameState.baopaiDecisions &&
                 gameState.baopaiDecisions[network.position] === null) {
-                if (gameState.baopaiTimer) clearInterval(gameState.baopaiTimer);
                 modal.classList.add('hidden');
                 network.sendGameAction('baopai_decision', { decision: false });
                 if (window.handleBaopaiDecision) {
@@ -438,14 +437,15 @@ function handleNetworkMessage(data) {
                 }
                 Object.assign(gameState, data.state);
 
-                // 使用暂存的机器人数据或从状态重建
-                if (window.pendingRobots) {
-                    gameState.robots = window.pendingRobots;
-                    window.pendingRobots = null;
-                } else if (data.state.robots) {
+                // Object.assign 会覆盖 robots 为裸对象（丢失 AI 方法），需重建为 RobotPlayer 实例
+                if (data.state.robots) {
                     gameState.robots = data.state.robots.map(r =>
                         r ? new RobotPlayer(r.position, r.difficulty) : null
                     );
+                    window.pendingRobots = null;
+                } else if (window.pendingRobots) {
+                    gameState.robots = window.pendingRobots;
+                    window.pendingRobots = null;
                 }
 
                 // 显示游戏页面
@@ -509,13 +509,6 @@ function handleNetworkMessage(data) {
                 document.getElementById('btn-ready-next').disabled = false;
                 document.getElementById('btn-ready-next').textContent = '准备';
                 showToast('房主发起下一局，请点击"准备"');
-            }
-            break;
-
-        case 'player_ready':
-            // 房主通过 onMessageCallback 收到（注意：game_action 路径下也有同名分支）
-            if (network.isHost && data.from !== undefined) {
-                if (typeof window.handlePlayerReady === 'function') window.handlePlayerReady(data.from);
             }
             break;
 
