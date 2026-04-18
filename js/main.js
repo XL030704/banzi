@@ -278,6 +278,7 @@ function bindRoomEvents() {
         if (confirm('确定要离开房间吗？')) {
             if (typeof clearSession === 'function') clearSession();
             network.leaveRoom();
+            if (window.GameAudio && GameAudio.stopBgm) GameAudio.stopBgm();
             roomRobots = [];
             showPage('home');
         }
@@ -367,6 +368,7 @@ function bindGameEvents() {
         document.getElementById('final-result-modal').classList.add('hidden');
         if (typeof clearSession === 'function') clearSession();
         network.leaveRoom();
+        if (window.GameAudio && GameAudio.stopBgm) GameAudio.stopBgm();
         showPage('home');
     });
 
@@ -451,6 +453,9 @@ function handleNetworkMessage(data) {
                 // 显示游戏页面
                 showPage('game');
 
+                // 开始循环播放背景音乐
+                if (window.GameAudio && GameAudio.playBgm) GameAudio.playBgm();
+
                 // 如果处于包牌阶段，显示包牌弹窗
                 if (gameState.phase === 'baopai') {
                     showBaopaiModal();
@@ -486,18 +491,15 @@ function handleNetworkMessage(data) {
             break;
 
         case 'new_game_started':
-            // 非房主：收到新对局通知
+            // 非房主：收到新对局通知（保留累计积分，仅重置本局）
             if (!network.isHost) {
                 document.getElementById('result-modal').classList.add('hidden');
                 document.getElementById('btn-ready-next').classList.add('hidden');
                 document.getElementById('btn-play-again').classList.remove('hidden');
                 if (gameState) {
-                    gameState.totalScores = [0, 0, 0, 0];
-                    gameState.roundCount = 0;
-                    gameState.roundHistory = [];
                     gameState.resetForNewRound();
                 }
-                showToast('房主开始新对局...');
+                showToast('房主开始新的一局...');
             }
             break;
 

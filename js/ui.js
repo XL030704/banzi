@@ -1196,6 +1196,9 @@ function initGame(initialState = null, robots = []) {
     showPage('game');
     updateGameDisplay();
 
+    // 开始循环播放背景音乐
+    if (window.GameAudio && GameAudio.playBgm) GameAudio.playBgm();
+
     // 保存会话（断线重连用）
     if (typeof saveSession === 'function') saveSession();
 
@@ -1263,16 +1266,14 @@ function readyForNext() {
     document.getElementById('btn-ready-next').textContent = '已准备';
 }
 
-// 新对局（重置所有积分重新开始，可在游戏中或结算后调用）
+// 新对局（保留累计积分，只重置当前牌局开始新的一局）
 function startNewGame() {
     if (!network.isHost) { showToast('只有房主可以开启新对局'); return; }
-    if (!confirm('放弃当前局，重置所有积分开始新对局？')) return;
+    if (!confirm('放弃当前牌局，开始新的一局？（累计积分不会清零）')) return;
     document.getElementById('result-modal').classList.add('hidden');
     network.broadcast({ type: 'new_game_started' });
     if (gameState) {
-        gameState.totalScores = [0, 0, 0, 0];
-        gameState.roundCount = 0;
-        gameState.roundHistory = [];
+        // 仅重置本局内状态，保留 totalScores / roundCount / roundHistory
         gameState.resetForNewRound();
     }
     startNewRound();
@@ -1302,6 +1303,7 @@ function leaveGame() {
     });
     clearSession();
     network.leaveRoom();
+    if (window.GameAudio && GameAudio.stopBgm) GameAudio.stopBgm();
     showPage('home');
 }
 

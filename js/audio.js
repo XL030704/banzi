@@ -55,7 +55,10 @@ const AUDIO_FILES = {
 // 缓存 Audio 实例，避免每次 new
 const _audioCache = {};
 let _muted = false;
-let _volume = 0.7;
+let _volume = 1.0;       // 出牌/喊牌/语音等效果音：大声
+let _bgmVolume = 0.2;    // 背景音乐：小声
+let _bgmAudio = null;
+const BGM_FILE = '背景配乐.mp3';
 
 function _getAudio(file) {
     if (!_audioCache[file]) {
@@ -158,8 +161,45 @@ function playYourTurn() {
 }
 function resetYourTurn() { _yourTurnPlayed = false; }
 
-function setMuted(m)   { _muted = !!m; }
+function setMuted(m)   {
+    _muted = !!m;
+    if (_muted && _bgmAudio) _bgmAudio.pause();
+}
 function setVolume(v)  { _volume = Math.max(0, Math.min(1, v)); }
+
+// ============ 背景音乐 ============
+
+function playBgm() {
+    if (_muted) return;
+    try {
+        if (!_bgmAudio) {
+            _bgmAudio = new Audio(AUDIO_BASE + BGM_FILE);
+            _bgmAudio.loop = true;
+            _bgmAudio.volume = _bgmVolume;
+            _bgmAudio.preload = 'auto';
+        }
+        if (_bgmAudio.paused) {
+            // play() 返回 Promise，浏览器自动播放策略可能拒绝；静默吃掉异常
+            _bgmAudio.play().catch(() => {});
+        }
+    } catch (e) {
+        // 忽略
+    }
+}
+
+function stopBgm() {
+    if (_bgmAudio) {
+        try {
+            _bgmAudio.pause();
+            _bgmAudio.currentTime = 0;
+        } catch (e) {}
+    }
+}
+
+function setBgmVolume(v) {
+    _bgmVolume = Math.max(0, Math.min(1, v));
+    if (_bgmAudio) _bgmAudio.volume = _bgmVolume;
+}
 
 // 导出
 window.GameAudio = {
@@ -170,5 +210,8 @@ window.GameAudio = {
     playYourTurn,
     resetYourTurn,
     setMuted,
-    setVolume
+    setVolume,
+    playBgm,
+    stopBgm,
+    setBgmVolume
 };
