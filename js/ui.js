@@ -135,6 +135,12 @@ function updateGameDisplay() {
         mySpade7Badge.classList.add('hidden');
     }
 
+    // 更新自己的包牌皇冠
+    const myCrown = document.getElementById('my-baopai-crown');
+    if (myCrown) {
+        myCrown.classList.toggle('hidden', gameState.baopaiPlayer !== network.position);
+    }
+
     // 更新被喊牌标识（如果已经被打出）
     updateCalledCardIndicators();
 
@@ -200,6 +206,10 @@ function updatePlayerInfo(elementIndex, playerIndex) {
         // 托管标识（位于张数旁）
         const tuoguanBadge = el.querySelector('.tuoguan-badge');
         if (tuoguanBadge) tuoguanBadge.classList.toggle('hidden', !player.isTuoguan);
+
+        // 包牌皇冠
+        const crown = el.querySelector('.baopai-crown');
+        if (crown) crown.classList.toggle('hidden', gameState.baopaiPlayer !== playerIndex);
     }
 }
 
