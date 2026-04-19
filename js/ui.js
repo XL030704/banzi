@@ -745,36 +745,12 @@ function handlePlayCards(playerIndex, cards, audioSeed) {
     }
 
     // 检查玩家是否出完
+    // 注意：即使满足结束条件，也不在这里立即 endGame。
+    // 让本轮正常走完——最后一手牌要允许别人压，并且要算到最终收牌者的收牌堆里。
+    // 真正的游戏结束判定放在 endRound 里。
     if (hand.length === 0 && !gameState.finishOrder.includes(playerIndex)) {
         gameState.finishOrder.push(playerIndex);
         showToast(`${network.players[playerIndex].name} 出完牌了!`);
-
-        // 包牌局：只要有人出完，游戏立即结束
-        if (gameState.baopaiPlayer !== -1) {
-            // 将剩余未出完的人按当前顺序加入 finishOrder
-            for (let i = 0; i < 4; i++) {
-                if (!gameState.finishOrder.includes(i)) {
-                    gameState.finishOrder.push(i);
-                }
-            }
-            endGame();
-            return;
-        }
-
-        // 检查游戏是否结束（正常局：某一队两人都出完）
-        const playerTeam = gameState.teams[playerIndex];
-        const teamFinished = gameState.finishOrder.filter(p => gameState.teams[p] === playerTeam);
-        if (teamFinished.length >= 2) {
-            // 同一队两人都已出完，游戏结束
-            // 将剩余两人加入finishOrder
-            for (let i = 0; i < 4; i++) {
-                if (!gameState.finishOrder.includes(i)) {
-                    gameState.finishOrder.push(i);
-                }
-            }
-            endGame();
-            return;
-        }
     }
 
     // 轮到下家（逆时针），跳过已出完牌的玩家
@@ -887,16 +863,36 @@ function endRound(winnerIndex) {
     }
     gameState.currentPlayer = nextPlayer;
 
-    // 检查游戏是否结束
-    if (gameState.finishOrder.length >= 3) {
-        // 第四个人自动结束
+    // ==== 检查游戏是否结束（收牌完成后才判定，保证最后一手牌也能被压/被收） ====
+
+    const fillRemainingFinishOrder = () => {
         for (let i = 0; i < 4; i++) {
             if (!gameState.finishOrder.includes(i)) {
                 gameState.finishOrder.push(i);
-                break;
             }
         }
+    };
 
+    // 1) 包牌局：只要有人出完，游戏结束
+    if (gameState.baopaiPlayer !== -1 && gameState.finishOrder.length > 0) {
+        fillRemainingFinishOrder();
+        endGame();
+        return;
+    }
+
+    // 2) 正常局：某一队两人都已出完
+    for (const team of [0, 1]) {
+        const teamFinished = gameState.finishOrder.filter(p => gameState.teams[p] === team);
+        if (teamFinished.length >= 2) {
+            fillRemainingFinishOrder();
+            endGame();
+            return;
+        }
+    }
+
+    // 3) 兜底：已有 3 人出完，第 4 人自动结束
+    if (gameState.finishOrder.length >= 3) {
+        fillRemainingFinishOrder();
         endGame();
         return;
     }
